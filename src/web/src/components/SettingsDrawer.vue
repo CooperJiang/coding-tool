@@ -145,6 +145,48 @@
             </div>
             <div class="panel-body">
               <div class="setting-group">
+                <!-- 面板可见性设置 -->
+                <div class="setting-item">
+                  <div class="setting-label">
+                    <n-text strong>面板显示</n-text>
+                    <n-text depth="3" style="font-size: 13px; margin-top: 4px;">
+                      控制右侧面板中各个区域的显示
+                    </n-text>
+                  </div>
+
+                  <div class="visibility-options">
+                    <!-- 显示渠道列表 -->
+                    <div class="visibility-item">
+                      <div class="visibility-info">
+                        <n-text strong>显示渠道列表</n-text>
+                        <n-text depth="3" style="font-size: 13px;">
+                          在右侧面板显示 API 渠道管理区域
+                        </n-text>
+                      </div>
+                      <n-switch
+                        :value="showChannels"
+                        @update:value="handleShowChannelsChange"
+                      />
+                    </div>
+
+                    <!-- 显示日志 -->
+                    <div class="visibility-item">
+                      <div class="visibility-info">
+                        <n-text strong>显示实时日志</n-text>
+                        <n-text depth="3" style="font-size: 13px;">
+                          在右侧面板显示代理日志区域(需开启动态切换)
+                        </n-text>
+                      </div>
+                      <n-switch
+                        :value="showLogs"
+                        @update:value="handleShowLogsChange"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <n-divider />
+
                 <!-- 主题设置 -->
                 <div class="setting-item">
                   <div class="setting-label">
@@ -245,10 +287,10 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import {
   NDrawer, NDrawerContent, NSpace, NText, NSelect, NButton, NAlert,
-  NIcon, NBadge, NSpin, NDivider, NTag, NEmpty
+  NIcon, NBadge, NSpin, NDivider, NTag, NEmpty, NSwitch
 } from 'naive-ui'
 import {
   SettingsOutline, TerminalOutline, ColorPaletteOutline, OptionsOutline,
@@ -281,6 +323,10 @@ const activeMenu = ref('terminal')
 
 // 主题管理
 const { isDark, toggleTheme } = useTheme()
+
+// 面板可见性设置
+const showChannels = ref(true)
+const showLogs = ref(true)
 
 // 菜单项配置
 const menuItems = ref([
@@ -365,10 +411,58 @@ async function handleSave() {
   }
 }
 
+// 加载面板可见性设置
+function loadPanelSettings() {
+  const saved = localStorage.getItem('cc-panel-visibility')
+  if (saved) {
+    try {
+      const settings = JSON.parse(saved)
+      showChannels.value = settings.showChannels !== false // default true
+      showLogs.value = settings.showLogs !== false // default true
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }
+}
+
+// 保存面板可见性设置
+function savePanelSettings() {
+  localStorage.setItem('cc-panel-visibility', JSON.stringify({
+    showChannels: showChannels.value,
+    showLogs: showLogs.value
+  }))
+}
+
+// 处理显示渠道列表切换
+function handleShowChannelsChange(value) {
+  showChannels.value = value
+  savePanelSettings()
+  // 通知 Layout 组件更新
+  window.dispatchEvent(new CustomEvent('panel-visibility-change', {
+    detail: { showChannels: value, showLogs: showLogs.value }
+  }))
+}
+
+// 处理显示日志切换
+function handleShowLogsChange(value) {
+  showLogs.value = value
+  savePanelSettings()
+  // 通知 Layout 组件更新
+  window.dispatchEvent(new CustomEvent('panel-visibility-change', {
+    detail: { showChannels: showChannels.value, showLogs: value }
+  }))
+}
+
+// 加载设置
+onMounted(() => {
+  loadPanelSettings()
+})
+
 // 监听抽屉打开，加载数据
 watch(show, (newVal) => {
   if (newVal) {
     loadTerminals()
+    loadPanelSettings()
   }
 })
 </script>
@@ -651,6 +745,43 @@ watch(show, (newVal) => {
   flex: 1;
   padding: 0 !important;
   overflow: hidden;
+}
+
+/* 可见性选项样式 */
+.visibility-options {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.visibility-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .visibility-item {
+  background: rgba(30, 41, 59, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.visibility-item:hover {
+  border-color: #18a058;
+  box-shadow: 0 2px 8px rgba(24, 160, 88, 0.1);
+}
+
+.visibility-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  margin-right: 16px;
 }
 
 /* 主题选择器样式 */

@@ -50,6 +50,7 @@
     "inquirer": "^8.2.7",
     "open": "^8.4.2",
     "ora": "^5.4.1",
+    "toml": "^3.0.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {

@@ -46,55 +46,11 @@
       </div>
 
       <div class="header-actions">
-        <!-- Proxy Toggle -->
-        <n-tooltip placement="bottom" :style="{ maxWidth: '280px' }">
-          <template #trigger>
-            <div class="proxy-control">
-              <span class="proxy-label">动态切换</span>
-              <n-switch
-                v-model:value="proxyRunning"
-                @update:value="toggleProxy"
-                :loading="proxyLoading"
-                size="medium"
-              />
-            </div>
-          </template>
-          <div style="line-height: 1.6;">
-            开启后会在本地启动代理服务，让您可以在右侧面板快速切换渠道，无需修改配置文件。
-            <br/>
-            <span style="color: #f59e0b;">注意：开启期间请勿关闭 CC 进程窗口。</span>
-          </div>
-        </n-tooltip>
-
         <!-- Theme Toggle -->
         <HeaderButton
           :icon="isDark ? SunnyOutline : MoonOutline"
           :tooltip="isDark ? '切换到亮色主题' : '切换到暗色主题'"
           @click="toggleTheme"
-        />
-
-        <!-- Recent Sessions -->
-        <HeaderButton
-          :icon="ChatbubblesOutline"
-          tooltip="最新对话"
-          @click="showRecentDrawer = true"
-        />
-
-        <!-- Toggle Channels Panel -->
-        <HeaderButton
-          :icon="ServerOutline"
-          :tooltip="showChannels ? '隐藏渠道列表' : '显示渠道列表'"
-          :active="showChannels"
-          @click="toggleChannels"
-        />
-
-        <!-- Toggle Logs Panel -->
-        <HeaderButton
-          :icon="TerminalOutline"
-          :tooltip="!proxyRunning ? '开启动态切换后才能展示实时日志' : (showLogs ? '隐藏实时日志' : '显示实时日志')"
-          :active="showLogs && proxyRunning"
-          :disabled="!proxyRunning"
-          @click="toggleLogs"
         />
 
         <!-- Settings Button -->
@@ -139,16 +95,19 @@
       <!-- Right Panel (Global) - Only show if at least one panel is enabled -->
       <transition name="slide-right">
         <RightPanel
-          v-if="showChannels || (showLogs && proxyRunning)"
+          v-if="showChannels || (showLogs && effectiveProxyRunning)"
           :show-channels="showChannels"
           :show-logs="showLogs"
-          :proxy-running="proxyRunning"
+          :proxy-running="effectiveProxyRunning"
+          :proxy-loading="effectiveProxyLoading"
+          @proxy-toggle="handleProxyToggle"
+          @show-recent="showRecentDrawer = true"
         />
       </transition>
     </div>
 
     <!-- Recent Sessions Drawer -->
-    <RecentSessionsDrawer v-model:visible="showRecentDrawer" />
+    <RecentSessionsDrawer v-model:visible="showRecentDrawer" :channel="currentChannel" />
 
     <!-- Settings Drawer -->
     <SettingsDrawer v-model:visible="showSettingsDrawer" />
@@ -232,7 +191,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { NTooltip, NSwitch, NSpin, NModal } from 'naive-ui'
+import { NTooltip, NSwitch, NSpin, NModal, NIcon } from 'naive-ui'
 import { ChatbubblesOutline, ServerOutline, TerminalOutline, LogoGithub, HelpCircleOutline, MoonOutline, SunnyOutline, SettingsOutline, HomeOutline, LayersOutline, CodeSlashOutline } from '@vicons/ionicons5'
 import RightPanel from './RightPanel.vue'
 import RecentSessionsDrawer from './RecentSessionsDrawer.vue'
@@ -257,8 +216,18 @@ const showSettingsDrawer = ref(false)
 const showHelpModal = ref(false)
 const proxyRunning = ref(false)
 const proxyLoading = ref(false)
+const codexProxyRunning = ref(false)
+const codexProxyLoading = ref(false)
 const globalLoading = ref(true) // 全局 loading 状态
 let statusCheckInterval = null
+
+// 根据当前 channel 计算有效的代理状态
+const effectiveProxyRunning = computed(() => {
+  return currentChannel.value === 'codex' ? codexProxyRunning.value : proxyRunning.value
+})
+const effectiveProxyLoading = computed(() => {
+  return currentChannel.value === 'codex' ? codexProxyLoading.value : proxyLoading.value
+})
 
 // Panel visibility settings (with localStorage persistence)
 const showChannels = ref(true)
@@ -363,15 +332,75 @@ async function toggleProxy(newValue) {
   }
 }
 
+// 检查 Codex 代理状态
+async function checkCodexProxyStatus() {
+  try {
+    const status = await api.getCodexProxyStatus()
+    codexProxyRunning.value = status.proxy.running
+  } catch (err) {
+    console.error('Failed to check Codex proxy status:', err)
+  }
+}
+
+// 切换 Codex 代理状态
+async function toggleCodexProxy(newValue) {
+  codexProxyLoading.value = true
+  const oldValue = !newValue
+
+  try {
+    if (newValue) {
+      const result = await api.startCodexProxy()
+      message.success(`Codex 代理已启动，端口: ${result.port}`)
+      codexProxyRunning.value = true
+      showLogs.value = true
+      savePanelSettings()
+      checkCodexProxyStatus().catch(err => console.error('Background status check failed:', err))
+    } else {
+      await api.stopCodexProxy()
+      message.success('Codex 代理已停止并恢复配置')
+      codexProxyRunning.value = false
+      checkCodexProxyStatus().catch(err => console.error('Background status check failed:', err))
+    }
+  } catch (err) {
+    message.error('操作失败: ' + err.message)
+    codexProxyRunning.value = oldValue
+  } finally {
+    codexProxyLoading.value = false
+  }
+}
+
+// 统一的代理切换处理器（根据当前 channel 路由到正确的代理）
+function handleProxyToggle(newValue) {
+  if (currentChannel.value === 'codex') {
+    toggleCodexProxy(newValue)
+  } else {
+    toggleProxy(newValue)
+  }
+}
+
+// 监听来自 SettingsDrawer 的面板可见性变化
+function handlePanelVisibilityChange(event) {
+  const { showChannels: newShowChannels, showLogs: newShowLogs } = event.detail
+  showChannels.value = newShowChannels
+  showLogs.value = newShowLogs
+}
+
 onMounted(() => {
   // 加载面板可见性设置
   loadPanelSettings()
 
+  // 监听面板可见性变化事件
+  window.addEventListener('panel-visibility-change', handlePanelVisibilityChange)
+
   // 初始检查状态（传入 isInitial = true）
   checkProxyStatus(true)
+  checkCodexProxyStatus() // 也检查 Codex 代理状态
 
   // 每30秒检查一次状态（降低请求频率）
-  statusCheckInterval = setInterval(() => checkProxyStatus(false), 30000)
+  statusCheckInterval = setInterval(() => {
+    checkProxyStatus(false)
+    checkCodexProxyStatus()
+  }, 30000)
 
   // 添加超时保护，确保 3 秒后无论如何都关闭 loading
   setTimeout(() => {
@@ -386,6 +415,8 @@ onUnmounted(() => {
   if (statusCheckInterval) {
     clearInterval(statusCheckInterval)
   }
+  // 移除事件监听
+  window.removeEventListener('panel-visibility-change', handlePanelVisibilityChange)
 })
 </script>
 

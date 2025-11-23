@@ -5,6 +5,10 @@ const inquirer = require('inquirer');
 const { loadConfig } = require('../config/loader');
 const { startWebSocketServer: attachWebSocketServer } = require('./websocket-server');
 const { isPortInUse, killProcessByPort, waitForPortRelease } = require('../utils/port-helper');
+const { isProxyConfig } = require('./services/settings-manager');
+const { isProxyConfig: isCodexProxyConfig } = require('./services/codex-settings-manager');
+const { startProxyServer } = require('./proxy-server');
+const { startCodexProxyServer } = require('./codex-proxy-server');
 
 async function startServer(port) {
   const config = loadConfig();
@@ -83,9 +87,16 @@ async function startServer(port) {
   // API Routes
   app.use('/api/projects', require('./api/projects')(config));
   app.use('/api/sessions', require('./api/sessions')(config));
+
+  // Codex API Routes
+  app.use('/api/codex/projects', require('./api/codex-projects')(config));
+  app.use('/api/codex/sessions', require('./api/codex-sessions')(config));
+  app.use('/api/codex/channels', require('./api/codex-channels')(config));
+
   app.use('/api/aliases', require('./api/aliases')());
   app.use('/api/channels', require('./api/channels'));
   app.use('/api/proxy', require('./api/proxy'));
+  app.use('/api/codex/proxy', require('./api/codex-proxy'));
   app.use('/api/settings', require('./api/settings'));
   app.use('/api/statistics', require('./api/statistics'));
 
@@ -106,6 +117,9 @@ async function startServer(port) {
     // 附加 WebSocket 服务器到同一个端口
     attachWebSocketServer(server);
     console.log(`   ws://localhost:${port}/ws\n`);
+
+    // 自动恢复代理状态
+    autoRestoreProxies();
   });
 
   // 监听端口占用错误
@@ -120,6 +134,44 @@ async function startServer(port) {
   });
 
   return server;
+}
+
+// 自动恢复代理状态
+function autoRestoreProxies() {
+  const config = loadConfig();
+  const os = require('os');
+  const fs = require('fs');
+  const path = require('path');
+
+  const ccToolDir = path.join(os.homedir(), '.claude', 'cc-tool');
+
+  // 检查 Claude 代理状态文件
+  const claudeActiveFile = path.join(ccToolDir, 'active-channel.json');
+  if (fs.existsSync(claudeActiveFile)) {
+    console.log(chalk.cyan('\n🔄 检测到 Claude 代理状态文件，正在自动启动...'));
+    const proxyPort = config.ports?.proxy || 10088;
+    startProxyServer(proxyPort)
+      .then(() => {
+        console.log(chalk.green(`✅ Claude 代理已自动启动，端口: ${proxyPort}`));
+      })
+      .catch((err) => {
+        console.error(chalk.red(`❌ Claude 代理启动失败: ${err.message}`));
+      });
+  }
+
+  // 检查 Codex 代理状态文件
+  const codexActiveFile = path.join(ccToolDir, 'codex-active-channel.json');
+  if (fs.existsSync(codexActiveFile)) {
+    console.log(chalk.cyan('\n🔄 检测到 Codex 代理状态文件，正在自动启动...'));
+    const codexProxyPort = config.ports?.codexProxy || 10089;
+    startCodexProxyServer(codexProxyPort)
+      .then(() => {
+        console.log(chalk.green(`✅ Codex 代理已自动启动，端口: ${codexProxyPort}`));
+      })
+      .catch((err) => {
+        console.error(chalk.red(`❌ Codex 代理启动失败: ${err.message}`));
+      });
+  }
 }
 
 module.exports = { startServer };

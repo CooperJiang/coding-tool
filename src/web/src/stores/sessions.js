@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import api from '../api'
 
 export const useSessionsStore = defineStore('sessions', () => {
@@ -11,6 +12,7 @@ export const useSessionsStore = defineStore('sessions', () => {
   const totalSize = ref(0)
   const loading = ref(false)
   const error = ref(null)
+  const currentChannel = ref('claude') // 当前渠道
 
   // Computed
   const sessionsWithAlias = computed(() => {
@@ -21,11 +23,15 @@ export const useSessionsStore = defineStore('sessions', () => {
   })
 
   // Actions
+  function setChannel(channel) {
+    currentChannel.value = channel
+  }
+
   async function fetchProjects() {
     loading.value = true
     error.value = null
     try {
-      const data = await api.getProjects()
+      const data = await api.getProjects(currentChannel.value)
       projects.value = data.projects
       currentProject.value = data.currentProject
     } catch (err) {
@@ -39,7 +45,7 @@ export const useSessionsStore = defineStore('sessions', () => {
     loading.value = true
     error.value = null
     try {
-      const data = await api.getSessions(projectName)
+      const data = await api.getSessions(projectName, currentChannel.value)
       sessions.value = data.sessions
       aliases.value = data.aliases
       totalSize.value = data.totalSize || 0
@@ -74,7 +80,7 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   async function deleteSession(sessionId) {
     try {
-      await api.deleteSession(currentProject.value, sessionId)
+      await api.deleteSession(currentProject.value, sessionId, currentChannel.value)
       sessions.value = sessions.value.filter(s => s.sessionId !== sessionId)
       if (aliases.value[sessionId]) {
         delete aliases.value[sessionId]
@@ -87,7 +93,7 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   async function forkSession(sessionId) {
     try {
-      const data = await api.forkSession(currentProject.value, sessionId)
+      const data = await api.forkSession(currentProject.value, sessionId, currentChannel.value)
       await fetchSessions(currentProject.value)
       return data.newSessionId
     } catch (err) {
@@ -98,7 +104,7 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   async function saveProjectOrder(order) {
     try {
-      await api.saveProjectOrder(order)
+      await api.saveProjectOrder(order, currentChannel.value)
       // Reorder local projects array
       const orderedProjects = order.map(name =>
         projects.value.find(p => p.name === name)
@@ -114,7 +120,7 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   async function deleteProject(projectName) {
     try {
-      await api.deleteProject(projectName)
+      await api.deleteProject(projectName, currentChannel.value)
       projects.value = projects.value.filter(p => p.name !== projectName)
       if (currentProject.value === projectName) {
         currentProject.value = null
@@ -127,7 +133,7 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   async function saveSessionOrder(order) {
     try {
-      await api.saveSessionOrder(currentProject.value, order)
+      await api.saveSessionOrder(currentProject.value, order, currentChannel.value)
       // Reorder local sessions array
       const orderedSessions = order.map(sessionId =>
         sessions.value.find(s => s.sessionId === sessionId)
@@ -150,7 +156,9 @@ export const useSessionsStore = defineStore('sessions', () => {
     totalSize,
     loading,
     error,
+    currentChannel,
     sessionsWithAlias,
+    setChannel,
     fetchProjects,
     fetchSessions,
     setAlias,

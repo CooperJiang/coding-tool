@@ -101,6 +101,10 @@ const props = defineProps({
   sessionAlias: {
     type: String,
     default: ''
+  },
+  channel: {
+    type: String,
+    default: 'claude'
   }
 })
 
@@ -130,7 +134,7 @@ async function loadMessages(page = 1) {
 
   try {
     loading.value = true
-    const response = await api.getSessionMessages(props.projectName, props.sessionId, page, 20, 'desc')
+    const response = await api.getSessionMessages(props.projectName, props.sessionId, page, 20, 'desc', props.channel)
 
     const { messages: newMessages, metadata: meta, pagination } = response
 

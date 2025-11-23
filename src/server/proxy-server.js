@@ -221,7 +221,8 @@ async function startProxyServer() {
                 inputTokens: tokenData.inputTokens,
                 outputTokens: tokenData.outputTokens,
                 cacheCreation: tokenData.cacheCreation,
-                cacheRead: tokenData.cacheRead
+                cacheRead: tokenData.cacheRead,
+                source: 'claude'
               });
 
               // 记录统计数据

@@ -1,6 +1,6 @@
 <template>
   <n-drawer v-model:show="show" :width="1200" placement="right" :show-close="true">
-    <n-drawer-content title="最新对话" :native-scrollbar="false" closable>
+    <n-drawer-content :title="channel === 'codex' ? 'Codex 最新对话' : 'Claude 最新对话'" :native-scrollbar="false" closable>
       <div v-if="loading" class="loading-container">
         <n-spin size="medium">
           <template #description>加载中...</template>
@@ -34,7 +34,7 @@
 </template>
 
 <script setup>
-import { ref, watch, h } from 'vue'
+import { ref, computed, watch, h } from 'vue'
 import { NDrawer, NDrawerContent, NSpin, NEmpty, NIcon, NInput } from 'naive-ui'
 import { ChatbubblesOutline } from '@vicons/ionicons5'
 import SessionCard from './SessionCard.vue'
@@ -45,6 +45,10 @@ const props = defineProps({
   visible: {
     type: Boolean,
     default: false
+  },
+  channel: {
+    type: String,
+    default: 'claude'
   }
 })
 
@@ -53,6 +57,9 @@ const emit = defineEmits(['update:visible'])
 const show = ref(false)
 const sessions = ref([])
 const loading = ref(false)
+
+// 为了在 template 中使用
+const channel = computed(() => props.channel)
 
 // Sync with props
 watch(() => props.visible, (val) => {
@@ -70,7 +77,7 @@ watch(show, (val) => {
 async function loadSessions() {
   loading.value = true
   try {
-    const data = await api.getRecentSessions(10)
+    const data = await api.getRecentSessions(10, props.channel)
     sessions.value = data.sessions
   } catch (err) {
     console.error('Failed to load recent sessions:', err)
@@ -79,6 +86,13 @@ async function loadSessions() {
     loading.value = false
   }
 }
+
+// 监听 channel 变化，重新加载会话
+watch(() => props.channel, () => {
+  if (show.value) {
+    loadSessions()
+  }
+})
 
 async function handleSetAlias(session) {
   const currentAlias = session.alias || ''
@@ -128,7 +142,7 @@ async function handleSetAlias(session) {
 
 async function handleLaunchSession(session) {
   try {
-    await api.launchTerminal(session.projectName, session.sessionId)
+    await api.launchTerminal(session.projectName, session.sessionId, props.channel)
     message.success('已启动终端')
   } catch (err) {
     message.error('启动失败: ' + err.message)

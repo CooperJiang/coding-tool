@@ -87,7 +87,8 @@ router.post('/:id/activate', (req, res) => {
       action: 'switch_channel',
       message: `切换渠道至 ${channel.name}`,
       channelName: channel.name,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      source: 'claude'
     });
 
     res.json({ channel });

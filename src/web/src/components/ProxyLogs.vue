@@ -24,20 +24,27 @@
         <div class="col col-channel">渠道</div>
         <div class="col col-token">请求</div>
         <div class="col col-token">回复</div>
-        <div class="col col-token">写入</div>
-        <div class="col col-token">命中</div>
+        <template v-if="source === 'claude'">
+          <div class="col col-token">写入</div>
+          <div class="col col-token">命中</div>
+        </template>
+        <template v-else>
+          <div class="col col-token">推理</div>
+          <div class="col col-token">缓存</div>
+          <div class="col col-token">总计</div>
+        </template>
         <div class="col col-time">时间</div>
       </div>
 
       <!-- 内容区域（可滚动） -->
       <div class="table-body" ref="tableBody">
-        <div v-if="logs.length === 0" class="empty-state">
+        <div v-if="filteredLogs.length === 0" class="empty-state">
           暂无日志
         </div>
 
         <!-- 行为日志 - 占一整行 -->
         <div
-          v-for="log in logs"
+          v-for="log in filteredLogs"
           :key="log.id"
           :class="log.type === 'action' ? 'action-row' : 'table-row'"
         >
@@ -60,8 +67,15 @@
                   </div>
                   <div class="col col-token">{{ log.inputTokens }}</div>
                   <div class="col col-token">{{ log.outputTokens }}</div>
-                  <div class="col col-token">{{ log.cacheCreation }}</div>
-                  <div class="col col-token">{{ log.cacheRead }}</div>
+                  <template v-if="source === 'claude'">
+                    <div class="col col-token">{{ log.cacheCreation }}</div>
+                    <div class="col col-token">{{ log.cacheRead }}</div>
+                  </template>
+                  <template v-else>
+                    <div class="col col-token">{{ log.reasoningTokens || 0 }}</div>
+                    <div class="col col-token">{{ log.cachedTokens || 0 }}</div>
+                    <div class="col col-token">{{ log.totalTokens || 0 }}</div>
+                  </template>
                   <div class="col col-time">{{ log.time }}</div>
                 </div>
               </template>
@@ -83,19 +97,37 @@
         </n-icon>
         {{ wsConnected ? '已连接' : '未连接' }}
       </span>
-      <span class="count">共 {{ logs.length }} 条</span>
+      <span class="count">共 {{ filteredLogs.length }} 条</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { NButton, NIcon, NTag, NTooltip } from 'naive-ui'
 import { TrashOutline, CheckmarkCircle, CloseCircle } from '@vicons/ionicons5'
 import api from '../api'
 import message from '../utils/message'
 
+// Props
+const props = defineProps({
+  source: {
+    type: String,
+    default: 'claude' // 'claude' or 'codex'
+  }
+})
+
 const logs = ref([])
+
+// 根据 source 过滤日志
+const filteredLogs = computed(() => {
+  return logs.value.filter(log => {
+    // 如果日志没有 source 字段，默认当作 claude 的日志
+    const logSource = log.source || 'claude'
+    return logSource === props.source
+  })
+})
+
 const wsConnected = ref(false)
 const tableBody = ref(null)
 const todayStats = ref({
@@ -120,13 +152,26 @@ function formatNumber(num) {
   return num.toString()
 }
 
-// 加载今日统计数据
+// 加载今日统计数据（根据 source 过滤）
 async function loadTodayStats() {
   try {
     const stats = await api.getTodayStatistics()
-    todayStats.value = {
-      requests: stats.summary?.requests || 0,
-      tokens: stats.summary?.tokens || 0
+
+    // 根据 source 获取对应工具类型的统计
+    // Claude 的 toolType 是 'claude-code'，Codex 的是 'codex'
+    const toolType = props.source === 'codex' ? 'codex' : 'claude-code'
+    const toolStats = stats.byToolType?.[toolType]
+
+    if (toolStats) {
+      todayStats.value = {
+        requests: toolStats.requests || 0,
+        tokens: toolStats.tokens?.total || 0
+      }
+    } else {
+      todayStats.value = {
+        requests: 0,
+        tokens: 0
+      }
     }
   } catch (err) {
     // 静默失败，不影响日志功能
@@ -282,6 +327,11 @@ function resetConnection() {
     connectWebSocket()
   }
 }
+
+// 监听 source 变化，重新加载统计数据
+watch(() => props.source, () => {
+  loadTodayStats()
+})
 
 onMounted(() => {
   connectWebSocket()

@@ -528,5 +528,7 @@ module.exports = {
   deleteProject,
   parseRealProjectPath,
   searchSessions,
-  searchSessionsAcrossProjects
+  searchSessionsAcrossProjects,
+  getForkRelations,
+  saveForkRelations
 };

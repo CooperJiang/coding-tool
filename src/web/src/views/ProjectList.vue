@@ -1,22 +1,5 @@
 <template>
   <div class="project-list-container">
-    <!-- Codex 即将推出 -->
-    <div v-if="currentChannel === 'codex'" class="coming-soon-container">
-      <div class="coming-soon-content">
-        <div class="coming-soon-icon">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M8 8L16 16M16 8L8 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h2 class="coming-soon-title">Codex 即将推出</h2>
-        <p class="coming-soon-desc">我们正在为 Codex 开发专属功能，敬请期待</p>
-        <div class="coming-soon-badge">🚧 开发中</div>
-      </div>
-    </div>
-
-    <!-- Claude 项目列表 -->
-    <template v-else>
       <!-- Fixed Header -->
       <div class="header">
         <div class="header-text">
@@ -165,7 +148,6 @@
         <n-empty v-if="globalSearchResults.sessions.length === 0" description="没有找到匹配的内容" />
       </div>
     </n-modal>
-    </template>
   </div>
 </template>
 
@@ -286,7 +268,7 @@ async function handleGlobalSearch() {
 
   globalSearching.value = true
   try {
-    const data = await api.searchSessionsGlobally(globalSearchQuery.value, 35)
+    const data = await api.searchSessionsGlobally(globalSearchQuery.value, 35, currentChannel.value)
     globalSearchResults.value = data
   } catch (err) {
     message.error('搜索失败: ' + err.message)
@@ -297,7 +279,7 @@ async function handleGlobalSearch() {
 
 async function handleLaunchTerminalFromGlobal(projectName, sessionId) {
   try {
-    await api.launchTerminal(projectName, sessionId)
+    await api.launchTerminal(projectName, sessionId, currentChannel.value)
     message.success('已启动终端')
     showGlobalSearch.value = false
   } catch (err) {
@@ -333,13 +315,13 @@ watch(showGlobalSearch, (newVal) => {
   }
 })
 
-onMounted(async () => {
-  try {
-    await store.fetchProjects()
-  } catch (err) {
-    console.error('❌ Failed to fetch projects:', err)
-  }
+// 监听 channel 变化
+watch(currentChannel, (newChannel) => {
+  store.setChannel(newChannel)
+  store.fetchProjects()
+}, { immediate: true })
 
+onMounted(() => {
   // 【暂时移除】添加事件监听 - 每次切换回来就刷新，体验不好
   // document.addEventListener('visibilitychange', handleVisibilityChange)
   // window.addEventListener('focus', handleWindowFocus)
@@ -361,83 +343,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-}
-
-/* Codex 即将推出样式 */
-.coming-soon-container {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  background: var(--bg-primary);
-}
-
-.coming-soon-content {
-  text-align: center;
-  max-width: 480px;
-}
-
-.coming-soon-icon {
-  width: 120px;
-  height: 120px;
-  margin: 0 auto 32px;
-  color: #3b82f6;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.05);
-    opacity: 0.8;
-  }
-}
-
-.coming-soon-icon svg {
-  width: 100%;
-  height: 100%;
-  filter: drop-shadow(0 4px 16px rgba(59, 130, 246, 0.3));
-}
-
-[data-theme="dark"] .coming-soon-icon svg {
-  filter: drop-shadow(0 4px 20px rgba(59, 130, 246, 0.4));
-}
-
-.coming-soon-title {
-  font-size: 32px;
-  font-weight: 700;
-  margin: 0 0 16px 0;
-  background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.coming-soon-desc {
-  font-size: 16px;
-  color: var(--text-tertiary);
-  margin: 0 0 32px 0;
-  line-height: 1.6;
-}
-
-.coming-soon-badge {
-  display: inline-block;
-  padding: 10px 24px;
-  background: rgba(59, 130, 246, 0.1);
-  border: 2px solid rgba(59, 130, 246, 0.3);
-  border-radius: 24px;
-  color: #3b82f6;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-[data-theme="dark"] .coming-soon-badge {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: rgba(59, 130, 246, 0.4);
-  color: #60a5fa;
 }
 
 .header {

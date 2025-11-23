@@ -2,13 +2,42 @@
   <div class="right-panel">
     <!-- 上半部分：API 渠道管理 -->
     <div v-if="showChannels" class="channels-section" :class="{ 'full-height': !showLogs || !proxyRunning }">
+      <!-- 动作按钮区域 -->
+      <div class="actions-section">
+        <div class="action-buttons">
+          <!-- 代理切换 -->
+          <div class="action-item">
+            <n-text depth="3" style="font-size: 13px; margin-right: 8px;">动态切换</n-text>
+            <n-switch
+              :value="proxyRunning"
+              :loading="proxyLoading"
+              size="small"
+              @update:value="handleProxyToggle"
+            />
+          </div>
+
+          <!-- 最近对话 -->
+          <n-button
+            size="small"
+            @click="handleShowRecent"
+          >
+            <template #icon>
+              <n-icon><TimeOutline /></n-icon>
+            </template>
+            最近对话
+          </n-button>
+        </div>
+      </div>
+
       <!-- 固定的标题栏 -->
       <div class="panel-header">
         <div class="header-title">
-          <h3>API 渠道管理</h3>
-          <n-text depth="3" style="font-size: 12px; margin-left: 8px;">拖拽可调整顺序</n-text>
+          <h3>{{ channelTitle }}</h3>
+          <n-text depth="3" style="font-size: 12px; margin-left: 8px;">
+            {{ currentChannel === 'claude' ? '拖拽可调整顺序' : '拖拽可调整顺序' }}
+          </n-text>
         </div>
-        <n-button type="primary" size="small" @click="handleAdd">
+        <n-button type="primary" size="small" @click="currentChannel === 'claude' ? handleAdd() : handleCodexAdd()">
           <template #icon>
             <n-icon><AddOutline /></n-icon>
           </template>
@@ -18,20 +47,22 @@
 
       <!-- 可滚动的渠道列表区域 -->
       <div class="channels-scroll-area">
-        <!-- Loading -->
-        <div v-if="loading" class="loading-container">
-          <n-spin size="small" />
-        </div>
-
-        <!-- Channels List -->
-        <div v-else>
-          <!-- Empty State -->
-          <div v-if="channels.length === 0" class="empty-state">
-            <n-empty description="暂无渠道" />
+        <!-- Claude 渠道列表 -->
+        <template v-if="currentChannel === 'claude'">
+          <!-- Loading -->
+          <div v-if="loading" class="loading-container">
+            <n-spin size="small" />
           </div>
 
-          <!-- Draggable List -->
-          <draggable
+          <!-- Channels List -->
+          <div v-else>
+            <!-- Empty State -->
+            <div v-if="channels.length === 0" class="empty-state">
+              <n-empty description="暂无渠道" />
+            </div>
+
+            <!-- Draggable List -->
+            <draggable
             v-else
             v-model="channels"
             item-key="id"
@@ -119,7 +150,127 @@
           </div>
             </template>
           </draggable>
-        </div>
+          </div>
+        </template>
+
+        <!-- Codex 渠道列表 -->
+        <template v-else-if="currentChannel === 'codex'">
+          <!-- Loading -->
+          <div v-if="codexLoading" class="loading-container">
+            <n-spin size="small" />
+          </div>
+
+          <!-- Channels List -->
+          <div v-else>
+            <!-- Empty State -->
+            <div v-if="codexChannels.length === 0" class="empty-state">
+              <n-empty description="暂无渠道">
+                <template #extra>
+                  <n-button type="primary" size="small" @click="handleCodexAdd">
+                    <template #icon>
+                      <n-icon><AddOutline /></n-icon>
+                    </template>
+                    添加 Codex 渠道
+                  </n-button>
+                </template>
+              </n-empty>
+            </div>
+
+            <!-- Draggable List -->
+            <draggable
+              v-else
+              v-model="codexChannels"
+              item-key="id"
+              class="channels-list"
+              ghost-class="ghost"
+              chosen-class="chosen"
+              drag-class="drag"
+              animation="200"
+              @end="handleCodexDragEnd"
+            >
+              <template #item="{ element }">
+                <div
+                  :key="element.id"
+                  class="channel-card"
+                  :class="{ active: element.isActive, collapsed: collapsedCodexChannels[element.id] }"
+                >
+                  <div class="channel-header">
+                    <div class="channel-title">
+                      <n-button
+                        text
+                        size="tiny"
+                        @click="toggleCodexCollapse(element.id)"
+                        class="collapse-btn"
+                      >
+                        <n-icon size="18" :class="{ 'collapsed': collapsedCodexChannels[element.id] }">
+                          <ChevronDownOutline />
+                        </n-icon>
+                      </n-button>
+                      <n-text strong>{{ element.name }}</n-text>
+                      <n-tag v-if="element.isActive" size="tiny" type="success" :bordered="false">
+                        当前使用
+                      </n-tag>
+                    </div>
+                    <div class="channel-actions">
+                      <n-button
+                        v-if="!element.isActive"
+                        size="tiny"
+                        type="primary"
+                        @click="handleCodexActivate(element.id)"
+                      >
+                        切换
+                      </n-button>
+                      <n-button
+                        size="tiny"
+                        @click="handleCodexEdit(element)"
+                      >
+                        编辑
+                      </n-button>
+                      <n-button
+                        size="tiny"
+                        type="error"
+                        :disabled="element.isActive"
+                        @click="handleCodexDelete(element.id)"
+                      >
+                        删除
+                      </n-button>
+                    </div>
+                  </div>
+
+                  <div v-show="!collapsedCodexChannels[element.id]" class="channel-info">
+                    <div class="info-row">
+                      <n-text depth="3" class="label">Provider:</n-text>
+                      <n-text depth="2" class="value" style="font-family: monospace;">{{ element.providerKey }}</n-text>
+                    </div>
+                    <div class="info-row">
+                      <n-text depth="3" class="label">URL:</n-text>
+                      <n-text depth="2" class="value">{{ element.baseUrl }}</n-text>
+                    </div>
+                    <div class="info-row">
+                      <n-text depth="3" class="label">Key:</n-text>
+                      <n-text depth="2" class="value" style="font-family: monospace;">
+                        {{ maskApiKey(element.apiKey) }}
+                      </n-text>
+                    </div>
+                    <div v-if="element.websiteUrl" class="info-row website-row">
+                      <n-text depth="3" class="label">官网:</n-text>
+                      <n-button
+                        text
+                        size="tiny"
+                        @click="openWebsite(element.websiteUrl)"
+                      >
+                        <template #icon>
+                          <n-icon size="14"><OpenOutline /></n-icon>
+                        </template>
+                        前往官网
+                      </n-button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </draggable>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -130,10 +281,10 @@
       class="logs-section"
       :class="{ 'full-height': !showChannels }"
     >
-      <ProxyLogs />
+      <ProxyLogs :source="currentChannel" />
     </div>
 
-    <!-- Add/Edit Dialog -->
+    <!-- Claude Add/Edit Dialog -->
     <n-modal v-model:show="showAddDialog" preset="dialog" :title="editingChannel ? '编辑渠道' : '添加渠道'">
       <n-form :model="formData">
         <n-form-item label="渠道名称">
@@ -169,19 +320,74 @@
         </n-space>
       </template>
     </n-modal>
+
+    <!-- Codex Add/Edit Dialog -->
+    <n-modal v-model:show="showCodexDialog" preset="dialog" :title="editingCodexChannel ? '编辑 Codex 渠道' : '添加 Codex 渠道'">
+      <n-form :model="codexFormData">
+        <n-form-item label="渠道名称">
+          <n-input v-model:value="codexFormData.name" placeholder="显示名称，如：OpenAI 官方 / 我的中转" />
+        </n-form-item>
+        <n-form-item label="Provider Key">
+          <n-input
+            v-model:value="codexFormData.providerKey"
+            placeholder="英文标识，如：openai、my-api（小写字母+短横线）"
+            :disabled="editingCodexChannel !== null"
+          />
+          <template #feedback>
+            <n-text depth="3" style="font-size: 11px;">
+              唯一英文标识，用于配置文件和环境变量（创建后不可修改）
+            </n-text>
+          </template>
+        </n-form-item>
+        <n-form-item label="Base URL">
+          <n-input
+            v-model:value="codexFormData.baseUrl"
+            placeholder="https://api.example.com/v1"
+            :disabled="editingCodexActiveChannel"
+          />
+        </n-form-item>
+        <n-form-item label="API Key">
+          <n-input
+            v-model:value="codexFormData.apiKey"
+            type="password"
+            show-password-on="click"
+            placeholder="sk-xxx 或其他格式"
+            :disabled="editingCodexActiveChannel"
+          />
+        </n-form-item>
+        <n-form-item label="官网地址（可选）">
+          <n-input
+            v-model:value="codexFormData.websiteUrl"
+            placeholder="https://www.example.com"
+          />
+        </n-form-item>
+        <n-text v-if="editingCodexActiveChannel" depth="3" style="font-size: 12px;">
+          提示：使用中的渠道只能修改名称
+        </n-text>
+      </n-form>
+      <template #action>
+        <n-space>
+          <n-button @click="showCodexDialog = false">取消</n-button>
+          <n-button type="primary" @click="handleCodexSave">保存</n-button>
+        </n-space>
+      </template>
+    </n-modal>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import {
-  NButton, NIcon, NText, NTag, NSpin, NEmpty, NModal, NForm, NFormItem, NInput, NSpace
+  NButton, NIcon, NText, NTag, NSpin, NEmpty, NModal, NForm, NFormItem, NInput, NSpace, NSwitch
 } from 'naive-ui'
-import { AddOutline, OpenOutline, ChevronDownOutline } from '@vicons/ionicons5'
+import { AddOutline, OpenOutline, ChevronDownOutline, TimeOutline, CodeSlashOutline } from '@vicons/ionicons5'
 import draggable from 'vuedraggable'
 import api from '../api'
 import message, { dialog } from '../utils/message'
 import ProxyLogs from './ProxyLogs.vue'
+
+const route = useRoute()
 
 // Props for panel visibility
 const props = defineProps({
@@ -196,7 +402,22 @@ const props = defineProps({
   proxyRunning: {
     type: Boolean,
     default: false
+  },
+  proxyLoading: {
+    type: Boolean,
+    default: false
   }
+})
+
+// Emits
+const emit = defineEmits(['proxy-toggle', 'show-recent'])
+
+// Get current channel from route
+const currentChannel = computed(() => route.meta.channel || 'claude')
+
+// 渠道标题
+const channelTitle = computed(() => {
+  return currentChannel.value === 'claude' ? 'API 渠道管理' : 'Codex 配置'
 })
 
 const channels = ref([])
@@ -212,7 +433,27 @@ const formData = ref({
   websiteUrl: ''
 })
 
+// Codex 渠道相关状态
+const codexChannels = ref([])
+const codexLoading = ref(false)
+const showCodexDialog = ref(false)
+const editingCodexChannel = ref(null)
+const editingCodexActiveChannel = ref(false)
+const collapsedCodexChannels = ref({})
+const codexFormData = ref({
+  name: '',
+  providerKey: '',
+  baseUrl: '',
+  apiKey: '',
+  websiteUrl: ''
+})
+
 async function loadChannels() {
+  // 只在 Claude 渠道时加载
+  if (currentChannel.value !== 'claude') {
+    return
+  }
+
   loading.value = true
   try {
     const data = await api.getChannels()
@@ -259,6 +500,16 @@ function handleEdit(channel) {
 
 function openWebsite(url) {
   window.open(url, '_blank')
+}
+
+// 处理代理切换
+function handleProxyToggle(value) {
+  emit('proxy-toggle', value)
+}
+
+// 处理显示最近对话
+function handleShowRecent() {
+  emit('show-recent')
 }
 
 // 折叠状态管理
@@ -400,9 +651,216 @@ function handleDelete(id) {
   })
 }
 
+// ==================== Codex 渠道管理 ====================
+
+async function loadCodexChannels() {
+  if (currentChannel.value !== 'codex') {
+    return
+  }
+
+  codexLoading.value = true
+  try {
+    const data = await api.getCodexChannels()
+    codexChannels.value = data.channels || []
+    loadCodexChannelOrder()
+  } catch (err) {
+    message.error('加载 Codex 渠道失败: ' + err.message)
+  } finally {
+    codexLoading.value = false
+  }
+}
+
+function handleCodexAdd() {
+  editingCodexChannel.value = null
+  editingCodexActiveChannel.value = false
+  codexFormData.value = {
+    name: '',
+    providerKey: '',
+    baseUrl: '',
+    apiKey: '',
+    websiteUrl: ''
+  }
+  showCodexDialog.value = true
+}
+
+function handleCodexEdit(channel) {
+  editingCodexChannel.value = channel
+  editingCodexActiveChannel.value = channel.isActive
+  codexFormData.value = {
+    name: channel.name,
+    providerKey: channel.providerKey,
+    baseUrl: channel.baseUrl,
+    apiKey: channel.apiKey,
+    websiteUrl: channel.websiteUrl || ''
+  }
+  showCodexDialog.value = true
+}
+
+async function handleCodexSave() {
+  // 验证逻辑
+  if (editingCodexActiveChannel.value) {
+    if (!codexFormData.value.name) {
+      message.error('请填写渠道名称')
+      return
+    }
+  } else {
+    if (!codexFormData.value.name || !codexFormData.value.providerKey ||
+        !codexFormData.value.baseUrl || !codexFormData.value.apiKey) {
+      message.error('请填写所有必填字段')
+      return
+    }
+  }
+
+  try {
+    if (editingCodexChannel.value) {
+      // 编辑
+      const updates = {
+        name: codexFormData.value.name,
+        websiteUrl: codexFormData.value.websiteUrl
+      }
+
+      if (!editingCodexActiveChannel.value) {
+        updates.baseUrl = codexFormData.value.baseUrl
+        updates.apiKey = codexFormData.value.apiKey
+      }
+
+      await api.updateCodexChannel(editingCodexChannel.value.id, updates)
+      message.success('Codex 渠道已更新')
+    } else {
+      // 创建
+      await api.createCodexChannel(
+        codexFormData.value.name,
+        codexFormData.value.providerKey,
+        codexFormData.value.baseUrl,
+        codexFormData.value.apiKey,
+        codexFormData.value.websiteUrl
+      )
+      message.success('Codex 渠道已添加')
+    }
+
+    showCodexDialog.value = false
+    editingCodexChannel.value = null
+    editingCodexActiveChannel.value = false
+    codexFormData.value = {
+      name: '',
+      providerKey: '',
+      baseUrl: '',
+      apiKey: '',
+      websiteUrl: ''
+    }
+    await loadCodexChannels()
+  } catch (err) {
+    message.error('操作失败: ' + err.message)
+  }
+}
+
+async function handleCodexActivate(id) {
+  try {
+    await api.activateCodexChannel(id)
+    message.success('Codex 渠道已切换')
+    await loadCodexChannels()
+  } catch (err) {
+    message.error('切换失败: ' + err.message)
+  }
+}
+
+function handleCodexDelete(id) {
+  dialog.warning({
+    title: '删除 Codex 渠道',
+    content: '确定要删除这个渠道吗？',
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await api.deleteCodexChannel(id)
+        message.success('Codex 渠道已删除')
+        await loadCodexChannels()
+      } catch (err) {
+        message.error('删除失败: ' + err.message)
+      }
+    }
+  })
+}
+
+// Codex 折叠状态管理
+function toggleCodexCollapse(channelId) {
+  collapsedCodexChannels.value[channelId] = !collapsedCodexChannels.value[channelId]
+  saveCodexCollapseSettings()
+}
+
+function loadCodexCollapseSettings() {
+  try {
+    const saved = localStorage.getItem('cc-codex-channel-collapse')
+    if (saved) {
+      collapsedCodexChannels.value = JSON.parse(saved)
+    }
+  } catch (err) {
+    console.error('Failed to load Codex collapse settings:', err)
+  }
+}
+
+function saveCodexCollapseSettings() {
+  try {
+    localStorage.setItem('cc-codex-channel-collapse', JSON.stringify(collapsedCodexChannels.value))
+  } catch (err) {
+    console.error('Failed to save Codex collapse settings:', err)
+  }
+}
+
+// Codex 拖拽排序
+function handleCodexDragEnd() {
+  saveCodexChannelOrder()
+}
+
+function saveCodexChannelOrder() {
+  try {
+    const order = codexChannels.value.map(c => c.id)
+    localStorage.setItem('cc-codex-channel-order', JSON.stringify(order))
+  } catch (err) {
+    console.error('Failed to save Codex channel order:', err)
+  }
+}
+
+function loadCodexChannelOrder() {
+  try {
+    const saved = localStorage.getItem('cc-codex-channel-order')
+    if (saved && codexChannels.value.length > 0) {
+      const order = JSON.parse(saved)
+      const orderedChannels = []
+      order.forEach(id => {
+        const channel = codexChannels.value.find(c => c.id === id)
+        if (channel) {
+          orderedChannels.push(channel)
+        }
+      })
+      codexChannels.value.forEach(channel => {
+        if (!orderedChannels.find(c => c.id === channel.id)) {
+          orderedChannels.push(channel)
+        }
+      })
+      codexChannels.value = orderedChannels
+    }
+  } catch (err) {
+    console.error('Failed to load Codex channel order:', err)
+  }
+}
+
+// 监听路由变化，切换渠道时重新加载
+watch(() => currentChannel.value, (newChannel) => {
+  if (newChannel === 'claude') {
+    loadChannels()
+    codexChannels.value = []
+  } else if (newChannel === 'codex') {
+    loadCodexChannels()
+    channels.value = []
+  }
+})
+
 onMounted(() => {
   loadCollapseSettings()
+  loadCodexCollapseSettings()
   loadChannels()
+  loadCodexChannels()
 })
 </script>
 
@@ -417,6 +875,31 @@ onMounted(() => {
   flex-direction: column;
   box-sizing: border-box;
   box-shadow: -4px 0 24px rgba(0, 0, 0, 0.03);
+}
+
+/* 动作按钮区域 */
+.actions-section {
+  flex-shrink: 0;
+  padding: 16px 18px 12px 18px;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--gradient-card);
+}
+
+.action-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-item :deep(.n-switch) {
+  flex-shrink: 0;
 }
 
 /* 上半部分：API 渠道管理 */
@@ -471,6 +954,16 @@ onMounted(() => {
   padding: 0 18px 18px 18px;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* Codex 配置区域 */
+.codex-config-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  padding: 40px 18px;
 }
 
 /* 下半部分：实时日志 */
