@@ -585,13 +585,22 @@ onMounted(() => {
   // 监听面板可见性变化事件
   window.addEventListener('panel-visibility-change', handlePanelVisibilityChange)
 
-  // 异步检查版本更新，不阻塞首页加载
-  // 延迟 500ms 后执行，避免与首页其他加载任务竞争资源
-  setTimeout(() => {
-    checkForUpdates().catch(err => {
-      console.warn('Version check failed:', err)
+  // 延迟检查版本更新，等页面完全加载后再执行
+  // 使用 requestIdleCallback 在浏览器空闲时执行，或者延迟到 2 秒后
+  if (window.requestIdleCallback) {
+    window.requestIdleCallback(() => {
+      checkForUpdates().catch(err => {
+        console.warn('Version check failed:', err)
+      })
     })
-  }, 500)
+  } else {
+    // 降级方案：延迟 2 秒后执行
+    setTimeout(() => {
+      checkForUpdates().catch(err => {
+        console.warn('Version check failed:', err)
+      })
+    }, 2000)
+  }
 })
 
 onUnmounted(() => {
