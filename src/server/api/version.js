@@ -61,7 +61,7 @@ router.get('/changelog/:version', async (req, res) => {
   try {
     const { version } = req.params;
     const owner = 'CooperJiang';
-    const repo = 'cc-tool';
+    const repo = 'coding-tool';
 
     // 调用 GitHub API 获取 release 信息
     const url = `https://api.github.com/repos/${owner}/${repo}/releases/tag/v${version}`;

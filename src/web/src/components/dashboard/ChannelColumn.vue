@@ -792,7 +792,7 @@ onUnmounted(() => {
   min-height: 0;
   background: var(--gradient-card);
   border: 1px solid var(--border-primary);
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
   box-shadow: var(--shadow-sm);
 }
@@ -843,7 +843,7 @@ onUnmounted(() => {
 .header-icon {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -886,7 +886,7 @@ onUnmounted(() => {
 .card {
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
@@ -1037,7 +1037,7 @@ onUnmounted(() => {
   padding: 4px 8px;
   background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
   border: 1px solid var(--border-primary);
-  border-radius: 6px;
+  border-radius: 4px;
   color: var(--text-secondary);
   transition: all 0.2s ease;
 }
@@ -1106,7 +1106,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: 6px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1127,7 +1127,7 @@ onUnmounted(() => {
 .access-icon {
   width: 32px;
   height: 32px;
-  border-radius: 6px;
+  border-radius: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1215,9 +1215,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 14px;
+  padding: 12px 12px;
   background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
-  border-radius: 10px;
+  border-radius: 6px;
   border: 1px solid var(--border-primary);
   transition: all 0.25s ease;
 }
@@ -1347,7 +1347,7 @@ onUnmounted(() => {
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--border-primary);
-  border-radius: 10px;
+  border-radius: 6px;
 }
 
 .logs-card .card-header {
@@ -1581,7 +1581,7 @@ onUnmounted(() => {
   max-width: 100%;
   font-size: 11px;
   font-weight: 600;
-  border-radius: 5px;
+  border-radius: 4px;
   padding: 3px 10px;
 }
 
@@ -1593,7 +1593,7 @@ onUnmounted(() => {
   color: var(--text-secondary);
   background: rgba(0, 0, 0, 0.03);
   padding: 4px 8px;
-  border-radius: 5px;
+  border-radius: 4px;
   margin: 0 3px;
 }
 
@@ -1673,7 +1673,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 5px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-primary);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1709,7 +1709,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
+  border-radius: 6px;
   margin: 10px;
   position: relative;
   overflow: hidden;
@@ -1785,7 +1785,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 16px;
+  border-radius: 10px;
   background: var(--bg-primary);
   border: 2px solid var(--border-primary);
   margin-bottom: 8px;

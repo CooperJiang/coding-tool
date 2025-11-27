@@ -4,6 +4,59 @@
 
 该项目遵循 [Semantic Versioning](https://semver.org/)。
 
+## [1.5.4] - 2024-11-27
+
+### Improved
+- 🎨 全局圆角优化，主卡片从 12px 调整为 8px，内部小卡片 6px，按钮 4-5px，整体更现代简洁
+- ✨ 优化 Logo 和导航标签的圆角设计，提升视觉精致度
+- 📊 今日数据统计卡片样式精细调整，提升数据展示的视觉层级
+- 🔒 锁定状态界面圆角优化，锁定图标容器从 16px 改为 10px
+- 📱 列表项和标签圆角统一调整，提升整体设计一致性
+- 🎯 按钮和选择器圆角细化，从 6px 优化为 4px，更具现代感
+
+---
+
+## [1.5.3] - 2024-11-26
+
+### Added
+- 🚀 新增 `ct daemon` 命令，支持后台运行模式（基于 PM2）
+  - `ct daemon start` - 后台启动服务
+  - `ct daemon stop` - 停止后台服务
+  - `ct daemon restart` - 重启服务
+  - `ct daemon status` - 查看运行状态
+  - `ct daemon logs` - 查看 PM2 日志
+- 🩺 新增 `ct doctor` 命令，系统健康诊断工具
+  - 检查 Node.js 版本兼容性
+  - 检查配置文件完整性
+  - 检查端口占用情况
+  - 检查 Claude Code 配置
+  - 检查日志目录和磁盘空间
+  - 检查进程运行状态
+- 📋 新增 `ct logs` 命令，日志管理工具
+  - `ct logs [type]` - 查看指定类型日志（ui/claude/codex/gemini）
+  - `ct logs --follow` - 实时跟踪日志
+  - `ct logs --lines N` - 显示最后 N 行
+  - `ct logs --clear` - 清空日志文件
+- 📊 新增 `ct stats` 命令，查看统计信息
+  - 会话数量统计
+  - Token 使用统计
+  - API 调用次数统计
+- ✨ 新增版本自动更新功能
+  - 自动检测新版本
+  - 一键更新并重启
+  - 支持查看更新日志
+
+### Improved
+- 🎨 优化 Web UI 更新提示，支持 Markdown 格式的 changelog 展示
+- 📦 改进日志管理，统一日志存储路径到 `~/.claude/logs/`
+- ⚡ 优化命令行帮助信息，新增命令自动出现在 `ct --help` 中
+
+### Fixed
+- 🐛 修复后台运行模式下端口冲突问题
+- 🐛 修复日志文件过大导致的性能问题
+
+---
+
 ## [1.5.2] - 2024-11-26
 
 ### Added

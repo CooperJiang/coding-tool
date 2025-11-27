@@ -644,7 +644,7 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
   padding: 6px 12px;
-  border-radius: 10px;
+  border-radius: 6px;
   margin-left: -12px;
 }
 
@@ -655,7 +655,7 @@ onUnmounted(() => {
 .logo-wrapper {
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: 6px;
   background: linear-gradient(135deg, rgba(24, 160, 88, 0.15) 0%, rgba(24, 160, 88, 0.05) 100%);
   display: flex;
   align-items: center;
@@ -715,7 +715,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
@@ -833,7 +833,7 @@ onUnmounted(() => {
   margin-bottom: 28px;
   padding: 20px;
   background: var(--bg-secondary);
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid var(--border-primary);
   transition: all 0.2s ease;
 }

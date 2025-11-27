@@ -1,6 +1,6 @@
 {
   "name": "coding-tool",
-  "version": "1.5.3",
+  "version": "1.5.4",
   "description": "Vibe Coding 增强工作助手 - 智能会话管理、动态渠道切换、全局搜索、实时监控",
   "main": "src/index.js",
   "bin": {
