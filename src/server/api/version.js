@@ -57,7 +57,7 @@ router.get('/current', (req, res) => {
 
 /**
  * GET /api/version/changelog/:version
- * 获取指定版本的更新日志（从 GitHub Release 获取）
+ * 获取指定版本的更新日志（从 GitHub CHANGELOG.md 或本地获取）
  */
 router.get('/changelog/:version', async (req, res) => {
   try {
@@ -65,30 +65,36 @@ router.get('/changelog/:version', async (req, res) => {
     const owner = 'CooperJiang';
     const repo = 'coding-tool';
 
-    // 调用 GitHub API 获取 release 信息
-    const url = `https://api.github.com/repos/${owner}/${repo}/releases/tag/v${version}`;
+    // 先尝试从 GitHub CHANGELOG.md 获取
+    const changelogUrl = `https://raw.githubusercontent.com/${owner}/${repo}/main/CHANGELOG.md`;
 
-    const response = await fetch(url, {
+    const response = await fetch(changelogUrl, {
       timeout: 5000,
       headers: {
         'User-Agent': 'coding-tool'
       }
     });
 
-    if (!response.ok) {
-      // 如果从 GitHub 获取失败，尝试从本地 CHANGELOG.md 获取
-      console.log(`[Version] GitHub release not found for v${version}, trying local CHANGELOG.md`);
-      return getChangelogFromLocal(version, res);
+    if (response.ok) {
+      const content = await response.text();
+
+      // 解析 Markdown，提取指定版本的内容
+      const versionRegex = new RegExp(`## \\[${escapeRegExp(version)}\\][\\s\\S]*?(?=## \\[|$)`, 'i');
+      const match = content.match(versionRegex);
+
+      if (match) {
+        return res.json({
+          success: true,
+          version,
+          changelog: match[0],
+          source: 'github'
+        });
+      }
     }
 
-    const release = await response.json();
-
-    res.json({
-      success: true,
-      version,
-      changelog: release.body || '',
-      url: release.html_url
-    });
+    console.log(`[Version] Failed to get changelog from GitHub for v${version}, trying local CHANGELOG.md`);
+    // 如果从 GitHub 获取失败，尝试从本地 CHANGELOG.md 获取
+    getChangelogFromLocal(version, res);
   } catch (error) {
     console.error('[Version] Failed to fetch from GitHub:', error.message);
     // 如果 GitHub 请求出错，尝试从本地文件获取
