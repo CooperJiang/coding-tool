@@ -1,20 +1,50 @@
 const { getAllChannels } = require('./channels');
+const { getChannels: getCodexChannels } = require('./codex-channels');
+const { getChannels: getGeminiChannels } = require('./gemini-channels');
 const { isChannelAvailable, getChannelHealthStatus, setOnChannelFrozen } = require('./channel-health');
 
-const state = {
-  channels: [],
-  signature: '',
-  inflight: new Map(),
-  sessionBindings: new Map(),
-  queue: []
+const channelProviders = {
+  claude: () => getAllChannels(),
+  codex: () => {
+    const data = getCodexChannels();
+    return Array.isArray(data?.channels) ? data.channels : [];
+  },
+  gemini: () => {
+    const data = getGeminiChannels();
+    return Array.isArray(data?.channels) ? data.channels : [];
+  }
 };
+
+function createState() {
+  return {
+    channels: [],
+    signature: '',
+    inflight: new Map(),
+    sessionBindings: new Map(),
+    queue: []
+  };
+}
+
+const schedulerStates = {
+  claude: createState(),
+  codex: createState(),
+  gemini: createState()
+};
+
+function getState(source = 'claude') {
+  if (!schedulerStates[source]) {
+    schedulerStates[source] = createState();
+  }
+  return schedulerStates[source];
+}
 
 const WAIT_TIMEOUT_MS = 15000;
 
 /**
  * 解绑指定渠道的所有会话
  */
-function unbindChannelSessions(channelId) {
+function unbindChannelSessions(source, channelId) {
+  const state = getState(source);
   let unbindCount = 0;
   for (const [sessionId, boundChannelId] of state.sessionBindings) {
     if (boundChannelId === channelId) {
@@ -23,7 +53,7 @@ function unbindChannelSessions(channelId) {
     }
   }
   if (unbindCount > 0) {
-    console.log(`[ChannelScheduler] Unbound ${unbindCount} sessions from frozen channel ${channelId}`);
+    console.log(`[ChannelScheduler] Unbound ${unbindCount} sessions from ${source} channel ${channelId}`);
   }
 }
 
@@ -41,8 +71,11 @@ function buildSignature(channels) {
   );
 }
 
-function refreshChannels() {
-  const raw = getAllChannels();
+function refreshChannels(source = 'claude') {
+  const state = getState(source);
+  const provider = channelProviders[source];
+  if (!provider) return;
+  const raw = provider();
   const signature = buildSignature(raw);
 
   if (signature === state.signature) {
@@ -58,7 +91,7 @@ function refreshChannels() {
       baseUrl: ch.baseUrl,
       apiKey: ch.apiKey,
       weight: Math.max(1, Number(ch.weight) || 1),
-      maxConcurrency: ch.maxConcurrency || null // 保持 null 值
+      maxConcurrency: ch.maxConcurrency ?? null
     }));
 
   state.channels.forEach(ch => {
@@ -68,14 +101,13 @@ function refreshChannels() {
   });
 }
 
-function getAvailableChannels() {
-  refreshChannels();
+function getAvailableChannels(source = 'claude') {
+  refreshChannels(source);
+  const state = getState(source);
   return state.channels.filter(ch => {
-    // 首先检查健康状态
-    if (!isChannelAvailable(ch.id)) {
+    if (!isChannelAvailable(ch.id, source)) {
       return false;
     }
-    // 然后检查并发限制
     if (ch.maxConcurrency === null) {
       return true;
     }
@@ -96,10 +128,11 @@ function pickWeightedChannel(channels) {
   return channels[channels.length - 1];
 }
 
-function tryAllocate(options = {}) {
+function tryAllocate(source = 'claude', options = {}) {
+  const state = getState(source);
   const sessionId = options.sessionId;
   const enableSessionBinding = options.enableSessionBinding !== false; // 默认开启
-  const available = getAvailableChannels();
+  const available = getAvailableChannels(source);
   if (!available.length) {
     return null;
   }
@@ -126,23 +159,26 @@ function tryAllocate(options = {}) {
   return chosen;
 }
 
-function drainQueue() {
+function drainQueue(source = 'claude') {
+  const state = getState(source);
   if (!state.queue.length) return;
 
   for (let i = 0; i < state.queue.length; i++) {
     const entry = state.queue[i];
-    const channel = tryAllocate(entry.options);
+    const channel = tryAllocate(source, entry.options);
     if (channel) {
       clearTimeout(entry.timer);
       state.queue.splice(i, 1);
       entry.resolve(channel);
-      return drainQueue();
+      return drainQueue(source);
     }
   }
 }
 
 function allocateChannel(options = {}) {
-  const channel = tryAllocate(options);
+  const source = options.source || 'claude';
+  const state = getState(source);
+  const channel = tryAllocate(source, options);
   if (channel) {
     return Promise.resolve(channel);
   }
@@ -161,6 +197,7 @@ function allocateChannel(options = {}) {
     }, WAIT_TIMEOUT_MS);
 
     state.queue.push({
+      source,
       options,
       resolve,
       reject,
@@ -169,21 +206,23 @@ function allocateChannel(options = {}) {
   });
 }
 
-function releaseChannel(channelId) {
+function releaseChannel(channelId, source = 'claude') {
+  const state = getState(source);
   if (!channelId) return;
   if (!state.inflight.has(channelId)) {
     state.inflight.set(channelId, 0);
   }
   const current = state.inflight.get(channelId) || 0;
   state.inflight.set(channelId, current > 0 ? current - 1 : 0);
-  drainQueue();
+  drainQueue(source);
 }
 
-function getSchedulerState() {
-  refreshChannels();
+function getSchedulerState(source = 'claude') {
+  refreshChannels(source);
+  const state = getState(source);
   return {
     channels: state.channels.map(ch => {
-      const healthStatus = getChannelHealthStatus(ch.id);
+      const healthStatus = getChannelHealthStatus(ch.id, source);
       return {
         id: ch.id,
         name: ch.name,

@@ -2,8 +2,9 @@ const express = require('express');
 const httpProxy = require('http-proxy');
 const http = require('http');
 const chalk = require('chalk');
-const { getEnabledChannels } = require('./services/codex-channels');
-const { broadcastLog } = require('./websocket-server');
+const { broadcastLog, broadcastSchedulerState } = require('./websocket-server');
+const { allocateChannel, releaseChannel, getSchedulerState } = require('./services/channel-scheduler');
+const { recordSuccess, recordFailure } = require('./services/channel-health');
 const { loadConfig } = require('../config/loader');
 const DEFAULT_CONFIG = require('../config/default');
 const { resolvePricing } = require('./utils/pricing');
@@ -41,6 +42,17 @@ const PRICING = {
 
 const CODEX_BASE_PRICING = DEFAULT_CONFIG.pricing.codex;
 const ONE_MILLION = 1000000;
+
+function resolveCodexTarget(baseUrl = '', requestPath = '') {
+  let target = baseUrl || '';
+  if (target.endsWith('/')) {
+    target = target.slice(0, -1);
+  }
+  if (target.endsWith('/v1') && requestPath.startsWith('/v1')) {
+    target = target.slice(0, -3);
+  }
+  return target;
+}
 
 /**
  * 计算请求成本
@@ -107,78 +119,77 @@ async function startCodexProxyServer(options = {}) {
     proxyApp = express();
     const proxy = httpProxy.createProxyServer({});
 
-    // 监听 proxyReq 事件，修改发往真实API的请求头
-    proxy.on('proxyReq', (proxyReq, req, res) => {
-      // 多渠道模式：使用第一个启用的渠道（简化版本）
-      const enabledChannels = getEnabledChannels();
-      const activeChannel = enabledChannels[0];
-      if (activeChannel) {
-        // 记录请求元数据
-        const requestId = `codex-${Date.now()}-${Math.random()}`;
-        requestMetadata.set(req, {
-          id: requestId,
-          channel: activeChannel.name,
-          channelId: activeChannel.id,
-          startTime: Date.now()
-        });
+    proxy.on('proxyReq', (proxyReq, req) => {
+      const activeChannel = req.selectedChannel;
+      if (!activeChannel) return;
 
-        // 设置真实的 API Key (OpenAI 格式使用 Bearer token)
-        proxyReq.removeHeader('authorization');
-        proxyReq.setHeader('authorization', `Bearer ${activeChannel.apiKey}`);
+      const requestId = `codex-${Date.now()}-${Math.random()}`;
+      requestMetadata.set(req, {
+        id: requestId,
+      channel: activeChannel.name,
+      channelId: activeChannel.id,
+      startTime: Date.now()
+      });
 
-        // 添加 OpenAI Responses API 必需的 header
-        proxyReq.setHeader('openai-beta', 'responses=experimental');
-
-        // 确保 content-type 正确
-        if (!proxyReq.getHeader('content-type')) {
-          proxyReq.setHeader('content-type', 'application/json');
-        }
+      proxyReq.removeHeader('authorization');
+      proxyReq.setHeader('authorization', `Bearer ${activeChannel.apiKey}`);
+      proxyReq.setHeader('openai-beta', 'responses=experimental');
+      if (!proxyReq.getHeader('content-type')) {
+        proxyReq.setHeader('content-type', 'application/json');
       }
     });
 
-    // 代理所有请求
-    proxyApp.use((req, res) => {
-      // 多渠道模式：使用第一个启用的渠道
-      const enabledChannels = getEnabledChannels();
-      const activeChannel = enabledChannels[0];
+    proxyApp.use(async (req, res) => {
+      try {
+        const channel = await allocateChannel({ source: 'codex', enableSessionBinding: false });
+        req.selectedChannel = channel;
 
-      if (!activeChannel) {
-        res.status(500).json({
-          error: {
-            message: 'No active Codex channel configured',
-            type: 'channel_error'
+        const release = (() => {
+          let released = false;
+          return () => {
+            if (released) return;
+            released = true;
+            releaseChannel(channel.id, 'codex');
+            broadcastSchedulerState('codex', getSchedulerState('codex'));
+          };
+        })();
+
+        res.on('close', release);
+        res.on('error', release);
+
+        broadcastSchedulerState('codex', getSchedulerState('codex'));
+
+        const target = resolveCodexTarget(channel.baseUrl, req.url);
+
+        proxy.web(req, res, {
+          target,
+          changeOrigin: true
+        }, (err) => {
+          release();
+          if (err) {
+            recordFailure(channel.id, 'codex', err);
+            console.error('Codex proxy error:', err);
+            if (res && !res.headersSent) {
+              res.status(502).json({
+                error: {
+                  message: 'Proxy error: ' + err.message,
+                  type: 'proxy_error'
+                }
+              });
+            }
           }
         });
-        return;
-      }
-
-      // 设置代理目标 (去掉 /v1 后缀，因为请求路径已经包含)
-      let target = activeChannel.baseUrl;
-      // 确保 target 不以 / 结尾
-      if (target.endsWith('/')) {
-        target = target.slice(0, -1);
-      }
-      // 如果 target 以 /v1 结尾，且请求路径以 /v1 开头，去掉 target 的 /v1
-      if (target.endsWith('/v1') && req.url.startsWith('/v1')) {
-        target = target.slice(0, -3);
-      }
-
-      proxy.web(req, res, {
-        target,
-        changeOrigin: true
-      }, (err) => {
-        if (err) {
-          console.error('Codex proxy error:', err);
-          if (res && !res.headersSent) {
-            res.status(502).json({
-              error: {
-                message: 'Proxy error: ' + err.message,
-                type: 'proxy_error'
-              }
-            });
-          }
+      } catch (error) {
+        console.error('Codex channel allocation error:', error);
+        if (!res.headersSent) {
+          res.status(503).json({
+            error: {
+              message: error.message || 'No Codex channel available',
+              type: 'channel_pool_exhausted'
+            }
+          });
         }
-      });
+      }
     });
 
     // 监听代理响应 (OpenAI 格式)
@@ -363,6 +374,8 @@ async function startCodexProxyServer(options = {}) {
             success: true,
             cost: cost
           });
+
+          recordSuccess(metadata.channelId, 'codex');
         }
 
         if (!isResponseClosed) {
@@ -376,6 +389,7 @@ async function startCodexProxyServer(options = {}) {
           console.error('Proxy response error:', err);
         }
         isResponseClosed = true;
+        recordFailure(metadata.channelId, 'codex', err);
         requestMetadata.delete(req);
       });
     });
@@ -383,6 +397,11 @@ async function startCodexProxyServer(options = {}) {
     // 处理代理错误
     proxy.on('error', (err, req, res) => {
       console.error('Codex proxy error:', err);
+      if (req && req.selectedChannel) {
+        recordFailure(req.selectedChannel.id, 'codex', err);
+        releaseChannel(req.selectedChannel.id, 'codex');
+        broadcastSchedulerState('codex', getSchedulerState('codex'));
+      }
       if (res && !res.headersSent) {
         res.status(502).json({
           error: {

@@ -14,7 +14,7 @@ const healthConfig = {
 };
 
 // 渠道健康状态
-const channelHealth = new Map(); // channelId → health info
+const channelHealth = new Map(); // `${source}:${channelId}` → health info
 
 // 冻结回调（用于通知调度器解绑会话）
 let onChannelFrozenCallback = null;
@@ -29,9 +29,14 @@ function setOnChannelFrozen(callback) {
 /**
  * 初始化渠道健康信息
  */
-function initChannelHealth(channelId) {
-  if (!channelHealth.has(channelId)) {
-    channelHealth.set(channelId, {
+function makeKey(source, channelId) {
+  return `${source || 'claude'}:${channelId}`;
+}
+
+function initChannelHealth(channelId, source = 'claude') {
+  const key = makeKey(source, channelId);
+  if (!channelHealth.has(key)) {
+    channelHealth.set(key, {
       status: 'healthy',           // healthy, frozen, checking
       consecutiveFailures: 0,      // 连续失败次数
       consecutiveSuccesses: 0,     // 连续成功次数
@@ -40,16 +45,17 @@ function initChannelHealth(channelId) {
       freezeUntil: 0,             // 冻结到期时间
       nextFreezeTime: healthConfig.initialFreezeTime,
       lastCheckTime: null,        // 最后检查时间
+      source
     });
   }
-  return channelHealth.get(channelId);
+  return channelHealth.get(key);
 }
 
 /**
  * 记录成功请求
  */
-function recordSuccess(channelId) {
-  const health = initChannelHealth(channelId);
+function recordSuccess(channelId, source = 'claude') {
+  const health = initChannelHealth(channelId, source);
   const now = Date.now();
 
   health.totalSuccesses++;
@@ -71,8 +77,8 @@ function recordSuccess(channelId) {
 /**
  * 记录失败请求
  */
-function recordFailure(channelId, error) {
-  const health = initChannelHealth(channelId);
+function recordFailure(channelId, source = 'claude', error) {
+  const health = initChannelHealth(channelId, source);
   const now = Date.now();
 
   health.totalFailures++;
@@ -99,7 +105,7 @@ function recordFailure(channelId, error) {
 
       // 触发冻结回调（通知调度器解绑会话）
       if (onChannelFrozenCallback) {
-        onChannelFrozenCallback(channelId);
+        onChannelFrozenCallback(source || 'claude', channelId);
       }
     }
   }
@@ -108,8 +114,9 @@ function recordFailure(channelId, error) {
 /**
  * 检查渠道是否可用
  */
-function isChannelAvailable(channelId) {
-  const health = channelHealth.get(channelId);
+function isChannelAvailable(channelId, source = 'claude') {
+  const key = makeKey(source, channelId);
+  const health = channelHealth.get(key);
   if (!health) return true;
 
   const now = Date.now();
@@ -141,15 +148,16 @@ function isChannelAvailable(channelId) {
 /**
  * 从渠道列表中过滤出可用的渠道
  */
-function getAvailableChannels(channels) {
-  return channels.filter(channel => isChannelAvailable(channel.id));
+function getAvailableChannels(channels, source = 'claude') {
+  return channels.filter(channel => isChannelAvailable(channel.id, source));
 }
 
 /**
  * 获取渠道健康状态（用于前端显示）
  */
-function getChannelHealthStatus(channelId) {
-  const health = channelHealth.get(channelId);
+function getChannelHealthStatus(channelId, source = 'claude') {
+  const key = makeKey(source, channelId);
+  const health = channelHealth.get(key);
   if (!health) {
     return {
       status: 'healthy',
@@ -189,10 +197,13 @@ function getChannelHealthStatus(channelId) {
 /**
  * 获取所有渠道的健康状态
  */
-function getAllChannelHealthStatus() {
+function getAllChannelHealthStatus(source = 'claude') {
   const result = {};
-  for (const [channelId] of channelHealth) {
-    result[channelId] = getChannelHealthStatus(channelId);
+  for (const [key] of channelHealth) {
+    const [keySource, channelId] = key.split(':');
+    if (keySource === (source || 'claude')) {
+      result[channelId] = getChannelHealthStatus(channelId, keySource);
+    }
   }
   return result;
 }
@@ -200,8 +211,8 @@ function getAllChannelHealthStatus() {
 /**
  * 手动重置渠道健康状态（用于测试或管理员操作）
  */
-function resetChannelHealth(channelId) {
-  const health = initChannelHealth(channelId);
+function resetChannelHealth(channelId, source = 'claude') {
+  const health = initChannelHealth(channelId, source);
   health.status = 'healthy';
   health.consecutiveFailures = 0;
   health.consecutiveSuccesses = 0;

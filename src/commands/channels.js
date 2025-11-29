@@ -62,6 +62,11 @@ async function handleChannelManagement() {
   const config = loadConfig();
   const cliType = config.currentCliType || 'claude';
   const services = getChannelServices(cliType);
+  if (!services || typeof services.getAllChannels !== 'function') {
+    console.log(chalk.red(`当前 CLI 类型 (${cliType}) 暂不支持渠道管理`));
+    await inquirer.prompt([{ type: 'input', name: 'continue', message: '按回车返回...' }]);
+    return;
+  }
 
   const channels = services.getAllChannels();
 
@@ -199,6 +204,7 @@ async function handleAddChannel() {
 
     console.log(chalk.green(`\n✅ 渠道添加成功: ${channel.name}\n`));
     console.log(chalk.gray('提示: 使用"渠道管理"功能来启用此渠道\n'));
+    broadcastSchedulerSnapshot(cliType);
 
     await inquirer.prompt([
       {
@@ -228,25 +234,32 @@ async function handleChannelStatus() {
 
   try {
     const { getSchedulerState } = require('../server/services/channel-scheduler');
-    const state = getSchedulerState();
+    const sources = [
+      { key: 'claude', label: 'Claude (Claude Code)' },
+      { key: 'codex', label: 'Codex (OpenAI)' },
+      { key: 'gemini', label: 'Gemini' }
+    ];
 
-    console.log(chalk.gray(`当前排队: ${state.pending || 0}`));
-    console.log('');
+    sources.forEach((source) => {
+      const state = getSchedulerState(source.key);
+      console.log(chalk.bold(`\n[${source.label}]`));
+      console.log(chalk.gray(`排队中: ${state.pending || 0}`));
 
-    if (!state.channels || state.channels.length === 0) {
-      console.log(chalk.yellow('暂无调度数据，请确保已启用至少一个 Claude 渠道。'));
-    } else {
-      state.channels.forEach((channel, index) => {
-        const concurrency = channel.maxConcurrency ?? '∞';
-        const healthText = channel.health?.statusText || '健康';
-        const healthColor = channel.health?.statusColor || '#18a058';
-        console.log(
-          `${chalk.cyan(String(index + 1).padStart(2, '0'))}. ${chalk.bold(channel.name)} ` +
-          chalk.gray(`并发 ${channel.inflight}/${concurrency} | 权重 ${channel.weight || 1}`)
-        );
-        console.log(`    健康状态: ${chalk.hex(healthColor)(healthText)}`);
-      });
-    }
+      if (!state.channels || state.channels.length === 0) {
+        console.log(chalk.yellow('暂无调度数据或未启用渠道。'));
+      } else {
+        state.channels.forEach((channel, index) => {
+          const concurrency = channel.maxConcurrency ?? '∞';
+          const healthText = channel.health?.statusText || '健康';
+          const healthColor = channel.health?.statusColor || '#18a058';
+          console.log(
+            `${chalk.cyan(String(index + 1).padStart(2, '0'))}. ${chalk.bold(channel.name)} ` +
+            chalk.gray(`并发 ${channel.inflight}/${concurrency} | 权重 ${channel.weight || 1}`)
+          );
+          console.log(`    健康状态: ${chalk.hex(healthColor)(healthText)}`);
+        });
+      }
+    });
   } catch (error) {
     console.log(chalk.red('无法读取调度状态: ' + error.message));
   }
@@ -329,7 +342,7 @@ async function handleChannelToggle(channels, services, cliType) {
   }
 
   if (hasChanged) {
-    broadcastSchedulerSnapshot();
+    broadcastSchedulerSnapshot(cliType);
   }
 
   await handleAdvancedConfig(services, cliType);
@@ -435,18 +448,18 @@ async function handleAdvancedConfig(services, cliType) {
     try {
       await services.updateChannel(target.id, payload);
       console.log(chalk.green(`已更新 ${target.name} 的并发/权重设置`));
-      broadcastSchedulerSnapshot();
+      broadcastSchedulerSnapshot(cliType);
     } catch (error) {
       console.log(chalk.red(`更新失败: ${error.message}`));
     }
   }
 }
 
-function broadcastSchedulerSnapshot() {
+function broadcastSchedulerSnapshot(source = 'claude') {
   try {
     const { getSchedulerState } = require('../server/services/channel-scheduler');
     const { broadcastSchedulerState } = require('../server/websocket-server');
-    broadcastSchedulerState('claude', getSchedulerState());
+    broadcastSchedulerState(source, getSchedulerState(source));
   } catch (err) {
     // ignore when scheduler not available
   }

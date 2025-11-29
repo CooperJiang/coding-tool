@@ -31,8 +31,9 @@ router.get('/', (req, res) => {
 
 router.get('/pool/status', (req, res) => {
   try {
-    const scheduler = getSchedulerState();
-    res.json({ source: 'claude', scheduler });
+    const source = req.query.source || 'claude';
+    const scheduler = getSchedulerState(source);
+    res.json({ source, scheduler });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -73,7 +74,7 @@ router.post('/', (req, res) => {
       maxConcurrency
     });
     res.json({ channel });
-    broadcastSchedulerState('claude', getSchedulerState());
+    broadcastSchedulerState('claude', getSchedulerState('claude'));
   } catch (error) {
     console.error('Error creating channel:', error);
     res.status(500).json({ error: error.message });
@@ -99,7 +100,7 @@ router.put('/:id', (req, res) => {
 
     const channel = updateChannel(id, updates);
     res.json({ channel });
-    broadcastSchedulerState('claude', getSchedulerState());
+    broadcastSchedulerState('claude', getSchedulerState('claude'));
   } catch (error) {
     console.error('Error updating channel:', error);
     res.status(500).json({ error: error.message });
@@ -112,7 +113,7 @@ router.delete('/:id', (req, res) => {
     const { id } = req.params;
     const result = deleteChannel(id);
     res.json(result);
-    broadcastSchedulerState('claude', getSchedulerState());
+    broadcastSchedulerState('claude', getSchedulerState('claude'));
   } catch (error) {
     console.error('Error deleting channel:', error);
     res.status(500).json({ error: error.message });
@@ -178,7 +179,7 @@ router.post('/:id/apply-to-settings', async (req, res) => {
 router.post('/:id/reset-health', (req, res) => {
   try {
     const { id } = req.params;
-    resetChannelHealth(id);
+    resetChannelHealth(id, 'claude');
     res.json({
       success: true,
       message: '渠道健康状态已重置',

@@ -38,6 +38,11 @@ export async function applyChannelToSettings(id) {
   return response.data
 }
 
+export async function resetChannelHealth(id) {
+  const response = await client.post(`/channels/${id}/reset-health`)
+  return response.data
+}
+
 export async function getBestChannelForRestore() {
   const response = await client.get('/channels/best-for-restore')
   return response.data

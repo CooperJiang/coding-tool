@@ -49,31 +49,6 @@
         </n-button>
       </div>
 
-      <div class="pool-status-card">
-        <div class="pool-status-header">
-          <span>调度状态</span>
-          <span class="pool-status-pending">排队: {{ currentSchedulerState.pending || 0 }}</span>
-        </div>
-        <div v-if="currentSchedulerChannels.length" class="pool-status-list">
-          <div
-            v-for="item in currentSchedulerChannels"
-            :key="item.id"
-            class="pool-status-item"
-          >
-            <div class="pool-status-name">{{ item.name }}</div>
-            <div class="pool-status-usage">
-              <span>{{ item.inflight }}</span>
-              <span class="divider">/</span>
-              <span>{{ item.maxConcurrency ?? '∞' }}</span>
-            </div>
-            <div class="pool-status-health" :style="{ color: item.health?.statusColor || 'var(--text-secondary)' }">
-              {{ item.health?.statusText || '健康' }}
-            </div>
-          </div>
-        </div>
-        <div v-else class="pool-status-empty">{{ poolStatusEmptyText }}</div>
-      </div>
-
       <!-- 可滚动的渠道列表区域 -->
       <div class="channels-scroll-area">
         <!-- Claude 渠道列表 -->
@@ -161,17 +136,6 @@ const channelTitles = {
 }
 
 const channelTitle = computed(() => channelTitles[currentChannel.value] || 'Claude 渠道管理')
-
-const currentSchedulerState = computed(() => {
-  return globalStore.schedulerState[currentChannel.value] || { channels: [], pending: 0 }
-})
-
-const currentSchedulerChannels = computed(() => currentSchedulerState.value.channels || [])
-
-const poolStatusEmptyText = computed(() => {
-  if (currentChannel.value === 'claude') return '暂无启用渠道'
-  return '该类型暂不提供实时调度信息'
-})
 
 function openWebsite(url) {
   window.open(url, '_blank')
@@ -306,81 +270,6 @@ watch(() => currentChannel.value, refreshChannel)
   padding: 12px;
   overflow-y: auto;
   overflow-x: hidden;
-}
-
-.pool-status-card {
-  margin: 12px 18px 0 18px;
-  padding: 12px 14px;
-  border: 1px solid var(--border-primary);
-  border-radius: 10px;
-  background: var(--gradient-card);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-}
-
-.pool-status-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: var(--text-secondary);
-}
-
-.pool-status-pending {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.pool-status-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.pool-status-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  padding: 6px 0;
-  border-bottom: 1px dashed var(--border-primary);
-}
-
-.pool-status-item:last-child {
-  border-bottom: none;
-}
-
-.pool-status-name {
-  flex: 1;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.pool-status-usage {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-  color: var(--text-secondary);
-  margin-right: 12px;
-}
-
-.pool-status-usage .divider {
-  color: var(--text-disabled);
-}
-
-.pool-status-health {
-  min-width: 48px;
-  text-align: right;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.pool-status-empty {
-  font-size: 12px;
-  color: var(--text-secondary);
-  padding: 4px 0;
 }
 
 /* 下半部分：实时日志 */

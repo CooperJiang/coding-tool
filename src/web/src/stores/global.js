@@ -276,19 +276,27 @@ export const useGlobalStore = defineStore('global', () => {
 
   async function loadChannels() {
     try {
-      const [claudeRes, codexRes, geminiRes, poolRes] = await Promise.all([
+      const [claudeRes, codexRes, geminiRes, claudePool, codexPool, geminiPool] = await Promise.all([
         axios.get('/api/channels').catch(() => ({ data: { channels: [] } })),
         axios.get('/api/codex/channels').catch(() => ({ data: { channels: [] } })),
         axios.get('/api/gemini/channels').catch(() => ({ data: { channels: [] } })),
-        axios.get('/api/channels/pool/status').catch(() => ({ data: null }))
+        axios.get('/api/channels/pool/status?source=claude').catch(() => ({ data: null })),
+        axios.get('/api/channels/pool/status?source=codex').catch(() => ({ data: null })),
+        axios.get('/api/channels/pool/status?source=gemini').catch(() => ({ data: null }))
       ])
 
       claudeChannels.value = claudeRes.data.channels || []
       codexChannels.value = codexRes.data.channels || []
       geminiChannels.value = geminiRes.data.channels || []
 
-      if (poolRes.data?.scheduler) {
-        schedulerState.claude = poolRes.data.scheduler
+      if (claudePool.data?.scheduler) {
+        schedulerState.claude = claudePool.data.scheduler
+      }
+      if (codexPool.data?.scheduler) {
+        schedulerState.codex = codexPool.data.scheduler
+      }
+      if (geminiPool.data?.scheduler) {
+        schedulerState.gemini = geminiPool.data.scheduler
       }
     } catch (error) {
       console.error('Failed to load channels:', error)

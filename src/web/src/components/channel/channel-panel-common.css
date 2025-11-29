@@ -1,0 +1,257 @@
+.loading-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 0;
+}
+
+.empty-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+}
+
+.channels-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.channel-card {
+  border: 1px solid var(--n-divider-color);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  border-left: 3px solid #18a058;
+}
+
+.channel-card.active {
+  border-color: var(--n-primary-color);
+  background: var(--n-primary-color-suppl, rgba(24, 160, 88, 0.08));
+  box-shadow: 0 2px 8px rgba(24, 160, 88, 0.1);
+}
+
+.channel-card:hover {
+  border-color: var(--n-border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.channel-card.disabled {
+  opacity: 0.6;
+  border-left-color: #909399;
+}
+
+.channel-card.status-frozen {
+  border-left-color: #d03050;
+  background: linear-gradient(90deg, rgba(208, 48, 80, 0.08) 0%, transparent 100%);
+}
+
+.channel-card.status-checking {
+  border-left-color: #f0a020;
+  background: linear-gradient(90deg, rgba(240, 160, 32, 0.08) 0%, transparent 100%);
+}
+
+.channel-card.collapsed .channel-info {
+  display: none;
+}
+
+.channel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: grab;
+}
+
+.channel-header:active {
+  cursor: grabbing;
+}
+
+.channel-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.channel-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--n-text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.channel-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.channel-actions .apply-btn {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.channel-card:hover .channel-actions .apply-btn {
+  opacity: 1;
+}
+
+.channel-actions :deep(.n-switch) {
+  margin-left: 2px;
+}
+
+.channel-info {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--n-border-color);
+}
+
+.info-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  font-size: 11px;
+  color: var(--n-text-color-3);
+  flex-shrink: 0;
+  width: 56px;
+}
+
+.value {
+  font-size: 12px;
+  color: var(--n-text-color-2);
+  word-break: break-word;
+  flex: 1;
+}
+
+.value.mono {
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+}
+
+.info-footer {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--n-border-color);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer-spacer {
+  flex: 1;
+}
+
+.channel-meta {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.meta-item {
+  font-size: 11px;
+  color: var(--n-text-color-3);
+  white-space: nowrap;
+}
+
+.meta-value {
+  color: #18a058;
+  font-weight: 600;
+}
+
+.meta-value.meta-active {
+  color: #f0a020;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.collapse-btn {
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.collapse-btn .n-icon {
+  transition: transform 0.2s ease;
+}
+
+.collapse-btn .n-icon.collapsed {
+  transform: rotate(-90deg);
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.channel-form {
+  padding: 0 4px;
+}
+
+.form-section {
+  background: var(--n-color);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--n-border-color);
+}
+
+.form-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--n-text-color);
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--n-border-color);
+}
+
+.channel-form :deep(.n-form-item) {
+  margin-bottom: 16px;
+}
+
+.channel-form :deep(.n-form-item:last-child) {
+  margin-bottom: 0;
+}
+
+.channel-form :deep(.n-form-item-label) {
+  font-size: 13px;
+}
+
+:global(.ghost) {
+  opacity: 0.4;
+}
+
+:global(.chosen) {
+  transform: scale(1.02);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
+  cursor: grabbing !important;
+}
+
+:global(.drag) {
+  opacity: 0.8;
+  transform: rotate(1deg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2) !important;
+}

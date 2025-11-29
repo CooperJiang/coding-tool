@@ -159,10 +159,10 @@ async function startProxyServer(options = {}) {
         const sessionId = extractSessionId(req);
         const config = loadConfig();
         const enableSessionBinding = config.enableSessionBinding !== false; // 默认开启
-        const channel = await allocateChannel({ sessionId, enableSessionBinding });
+        const channel = await allocateChannel({ source: 'claude', sessionId, enableSessionBinding });
 
         // 广播调度状态（请求开始）
-        broadcastSchedulerState('claude', getSchedulerState());
+        broadcastSchedulerState('claude', getSchedulerState('claude'));
 
         req.selectedChannel = channel;
         req.sessionId = sessionId || null;
@@ -171,9 +171,9 @@ async function startProxyServer(options = {}) {
         const release = () => {
           if (released) return;
           released = true;
-          releaseChannel(channel.id);
+          releaseChannel(channel.id, 'claude');
           // 广播调度状态（请求结束）
-          broadcastSchedulerState('claude', getSchedulerState());
+          broadcastSchedulerState('claude', getSchedulerState('claude'));
         };
 
         req.__releaseChannel = release;
@@ -188,7 +188,7 @@ async function startProxyServer(options = {}) {
           release();
           if (err) {
             // 记录请求失败
-            recordFailure(channel.id, err);
+            recordFailure(channel.id, 'claude', err);
             console.error('Proxy error:', err);
             if (res && !res.headersSent) {
               res.status(502).json({
@@ -339,7 +339,7 @@ async function startProxyServer(options = {}) {
               });
 
               // 记录请求成功（用于健康检查）
-              recordSuccess(metadata.channelId);
+              recordSuccess(metadata.channelId, 'claude');
             }
           } catch (err) {
           }
@@ -363,7 +363,7 @@ async function startProxyServer(options = {}) {
         }
         // 记录响应错误
         if (metadata && metadata.channelId) {
-          recordFailure(metadata.channelId, err);
+          recordFailure(metadata.channelId, 'claude', err);
         }
         isResponseClosed = true;
         finalize();
@@ -374,7 +374,7 @@ async function startProxyServer(options = {}) {
       console.error('Proxy error:', err);
       // 记录请求失败（用于健康检查）
       if (req && req.selectedChannel && req.selectedChannel.id) {
-        recordFailure(req.selectedChannel.id, err);
+        recordFailure(req.selectedChannel.id, 'claude', err);
       }
       if (res && !res.headersSent) {
         res.status(502).json({

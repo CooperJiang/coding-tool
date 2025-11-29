@@ -8,6 +8,8 @@ const {
   getEnabledChannels,
   saveChannelOrder
 } = require('../services/gemini-channels');
+const { getSchedulerState } = require('../services/channel-scheduler');
+const { broadcastSchedulerState } = require('../websocket-server');
 const { isGeminiInstalled } = require('../services/gemini-config');
 
 module.exports = (config) => {
@@ -56,6 +58,7 @@ module.exports = (config) => {
         maxConcurrency
       });
       res.json(channel);
+      broadcastSchedulerState('gemini', getSchedulerState('gemini'));
     } catch (err) {
       console.error('[Gemini Channels API] Failed to create channel:', err);
       res.status(500).json({ error: err.message });
@@ -77,6 +80,7 @@ module.exports = (config) => {
 
       const channel = updateChannel(channelId, updates);
       res.json(channel);
+      broadcastSchedulerState('gemini', getSchedulerState('gemini'));
     } catch (err) {
       console.error('[Gemini Channels API] Failed to update channel:', err);
       res.status(500).json({ error: err.message });
@@ -96,6 +100,7 @@ module.exports = (config) => {
       const { channelId } = req.params;
       const result = deleteChannel(channelId);
       res.json(result);
+      broadcastSchedulerState('gemini', getSchedulerState('gemini'));
     } catch (err) {
       console.error('[Gemini Channels API] Failed to delete channel:', err);
       res.status(500).json({ error: err.message });

@@ -8,6 +8,8 @@ const {
   getEnabledChannels,
   saveChannelOrder
 } = require('../services/codex-channels');
+const { getSchedulerState } = require('../services/channel-scheduler');
+const { broadcastSchedulerState } = require('../websocket-server');
 const { isCodexInstalled } = require('../services/codex-config');
 
 module.exports = (config) => {
@@ -57,6 +59,7 @@ module.exports = (config) => {
         maxConcurrency
       });
       res.json(channel);
+      broadcastSchedulerState('codex', getSchedulerState('codex'));
     } catch (err) {
       console.error('[Codex Channels API] Failed to create channel:', err);
       res.status(500).json({ error: err.message });
@@ -78,6 +81,7 @@ module.exports = (config) => {
 
       const channel = updateChannel(channelId, updates);
       res.json(channel);
+      broadcastSchedulerState('codex', getSchedulerState('codex'));
     } catch (err) {
       console.error('[Codex Channels API] Failed to update channel:', err);
       res.status(500).json({ error: err.message });
@@ -97,6 +101,7 @@ module.exports = (config) => {
       const { channelId } = req.params;
       const result = deleteChannel(channelId);
       res.json(result);
+      broadcastSchedulerState('codex', getSchedulerState('codex'));
     } catch (err) {
       console.error('[Codex Channels API] Failed to delete channel:', err);
       res.status(500).json({ error: err.message });
