@@ -306,11 +306,13 @@ router.get('/:projectName/:sessionId/messages', async (req, res) => {
       // Parse real project path (important for cross-project sessions)
       const { fullPath } = parseRealProjectPath(projectName);
 
+      const projectSessionsDir = path.join(fullPath, '.claude', 'sessions');
+      const projectSessionFile = path.join(projectSessionsDir, sessionId + '.jsonl');
+
       // Try to find session file in multiple possible locations
       let sessionFile = null;
       const possiblePaths = [
-        // Location 1: Project's .claude/sessions directory
-        path.join(fullPath, '.claude', 'sessions', sessionId + '.jsonl'),
+        projectSessionFile,
         // Location 2: User's .claude/projects directory (ClaudeCode default)
         path.join(os.homedir(), '.claude', 'projects', projectName, sessionId + '.jsonl')
       ];
@@ -319,6 +321,19 @@ router.get('/:projectName/:sessionId/messages', async (req, res) => {
         if (fs.existsSync(testPath)) {
           sessionFile = testPath;
           break;
+        }
+      }
+
+      // 如果会话只存在于全局目录，则复制到项目的 .claude/sessions 目录，避免 claude -r 找不到文件
+      if (sessionFile && sessionFile !== projectSessionFile) {
+        try {
+          if (!fs.existsSync(projectSessionsDir)) {
+            fs.mkdirSync(projectSessionsDir, { recursive: true });
+          }
+          fs.copyFileSync(sessionFile, projectSessionFile);
+          sessionFile = projectSessionFile;
+        } catch (copyError) {
+          console.warn('Failed to sync session file to project directory:', copyError.message);
         }
       }
 

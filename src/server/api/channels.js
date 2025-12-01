@@ -11,6 +11,7 @@ const {
 } = require('../services/channels');
 const { getSchedulerState } = require('../services/channel-scheduler');
 const { getChannelHealthStatus, getAllChannelHealthStatus, resetChannelHealth } = require('../services/channel-health');
+const { testChannelSpeed, testMultipleChannels, getLatencyLevel } = require('../services/speed-test');
 const { broadcastLog, broadcastProxyState, broadcastSchedulerState } = require('../websocket-server');
 
 // GET /api/channels - Get all channels with health status
@@ -190,5 +191,66 @@ router.post('/:id/reset-health', (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// POST /api/channels/:id/speed-test - Test single channel speed
+router.post('/:id/speed-test', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { timeout = 10000 } = req.body;
+    const channels = getAllChannels();
+    const channel = channels.find(ch => ch.id === id);
+
+    if (!channel) {
+      return res.status(404).json({ error: '渠道不存在' });
+    }
+
+    const result = await testChannelSpeed(channel, timeout);
+    result.level = getLatencyLevel(result.latency);
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error testing channel speed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/channels/speed-test-all - Test all channels speed
+router.post('/speed-test-all', async (req, res) => {
+  try {
+    const { timeout = 10000 } = req.body;
+    const channels = getAllChannels();
+
+    if (channels.length === 0) {
+      return res.json({ results: [], message: '没有可测试的渠道' });
+    }
+
+    const results = await testMultipleChannels(channels, timeout);
+    // 添加延迟等级
+    results.forEach(r => {
+      r.level = getLatencyLevel(r.latency);
+    });
+
+    res.json({
+      results,
+      summary: {
+        total: results.length,
+        success: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+        avgLatency: calculateAvgLatency(results)
+      }
+    });
+  } catch (error) {
+    console.error('Error testing all channels speed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 计算平均延迟
+function calculateAvgLatency(results) {
+  const successResults = results.filter(r => r.success && r.latency);
+  if (successResults.length === 0) return null;
+  const sum = successResults.reduce((acc, r) => acc + r.latency, 0);
+  return Math.round(sum / successResults.length);
+}
 
 module.exports = router;

@@ -11,6 +11,7 @@ const {
 const { getSchedulerState } = require('../services/channel-scheduler');
 const { broadcastSchedulerState } = require('../websocket-server');
 const { isGeminiInstalled } = require('../services/gemini-config');
+const { testChannelSpeed, testMultipleChannels, getLatencyLevel } = require('../services/speed-test');
 
 module.exports = (config) => {
   /**
@@ -149,5 +150,80 @@ module.exports = (config) => {
     }
   });
 
+  /**
+   * POST /api/gemini/channels/:channelId/speed-test
+   * 测试单个渠道速度
+   */
+  router.post('/:channelId/speed-test', async (req, res) => {
+    try {
+      if (!isGeminiInstalled()) {
+        return res.status(404).json({ error: 'Gemini CLI not installed' });
+      }
+
+      const { channelId } = req.params;
+      const { timeout = 10000 } = req.body;
+      const data = getChannels();
+      const channel = data.channels.find(ch => ch.id === channelId);
+
+      if (!channel) {
+        return res.status(404).json({ error: '渠道不存在' });
+      }
+
+      const result = await testChannelSpeed(channel, timeout);
+      result.level = getLatencyLevel(result.latency);
+
+      res.json(result);
+    } catch (error) {
+      console.error('[Gemini Channels API] Error testing channel speed:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/gemini/channels/speed-test-all
+   * 测试所有渠道速度
+   */
+  router.post('/speed-test-all', async (req, res) => {
+    try {
+      if (!isGeminiInstalled()) {
+        return res.json({ results: [], message: 'Gemini CLI not installed' });
+      }
+
+      const { timeout = 10000 } = req.body;
+      const data = getChannels();
+      const channels = data.channels || [];
+
+      if (channels.length === 0) {
+        return res.json({ results: [], message: '没有可测试的渠道' });
+      }
+
+      const results = await testMultipleChannels(channels, timeout);
+      results.forEach(r => {
+        r.level = getLatencyLevel(r.latency);
+      });
+
+      res.json({
+        results,
+        summary: {
+          total: results.length,
+          success: results.filter(r => r.success).length,
+          failed: results.filter(r => !r.success).length,
+          avgLatency: calculateAvgLatency(results)
+        }
+      });
+    } catch (error) {
+      console.error('[Gemini Channels API] Error testing all channels speed:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return router;
 };
+
+// 计算平均延迟
+function calculateAvgLatency(results) {
+  const successResults = results.filter(r => r.success && r.latency);
+  if (successResults.length === 0) return null;
+  const sum = successResults.reduce((acc, r) => acc + r.latency, 0);
+  return Math.round(sum / successResults.length);
+}

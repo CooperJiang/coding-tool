@@ -112,6 +112,9 @@ async function startServer(port) {
   app.use('/api/version', require('./api/version'));
   app.use('/api/pm2-autostart', require('./api/pm2-autostart')());
   app.use('/api/dashboard', require('./api/dashboard'));
+  app.use('/api/mcp', require('./api/mcp'));
+  app.use('/api/prompts', require('./api/prompts'));
+  app.use('/api/env', require('./api/env'));
 
   // Serve static files in production
   const distPath = path.join(__dirname, '../../dist/web');

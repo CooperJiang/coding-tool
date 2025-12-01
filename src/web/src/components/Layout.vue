@@ -1,5 +1,15 @@
 <template>
   <div class="layout">
+    <!-- 环境变量冲突弹窗 -->
+    <EnvConflictModal
+      v-model:visible="showEnvModal"
+      :conflicts="envConflicts"
+      @deleted="handleEnvDeleted"
+      @close="showEnvModal = false"
+      @ignore="handleEnvIgnore"
+      @never-remind="handleEnvNeverRemind"
+    />
+
     <!-- Global Header -->
     <header class="header">
       <div class="logo-section" @click="goHome">
@@ -57,6 +67,19 @@
       </div>
 
       <div class="header-actions">
+        <!-- Env Conflict Warning -->
+        <n-tooltip v-if="envConflicts.length > 0" trigger="hover">
+          <template #trigger>
+            <div class="env-warning-btn" @click="showEnvModal = true">
+              <n-icon :size="18" class="env-warning-icon">
+                <WarningOutline />
+              </n-icon>
+              <span class="env-warning-count">{{ envConflicts.length }}</span>
+            </div>
+          </template>
+          检测到 {{ envConflicts.length }} 个环境变量冲突，点击查看
+        </n-tooltip>
+
         <!-- Update Notification -->
         <div v-if="updateInfo" class="update-notification">
           <div class="update-badge" @click="handleUpdateClick">
@@ -87,6 +110,27 @@
             {{ totalFavorites }}
           </div>
         </div>
+
+        <!-- Prompts Button -->
+        <HeaderButton
+          :icon="ChatboxOutline"
+          tooltip="Prompts 管理"
+          @click="showPromptsDrawer = true"
+        />
+
+        <!-- MCP Button -->
+        <HeaderButton
+          :icon="ExtensionPuzzleOutline"
+          tooltip="MCP 服务器管理"
+          @click="showMcpDrawer = true"
+        />
+
+        <!-- Speed Test Button -->
+        <HeaderButton
+          :icon="SpeedometerOutline"
+          tooltip="渠道速度测试"
+          @click="showSpeedTestDrawer = true"
+        />
 
         <!-- Settings Button -->
         <HeaderButton
@@ -148,6 +192,15 @@
 
     <!-- Settings Drawer -->
     <SettingsDrawer v-model:visible="showSettingsDrawer" />
+
+    <!-- MCP Drawer -->
+    <McpDrawer v-model:visible="showMcpDrawer" />
+
+    <!-- Prompts Drawer -->
+    <PromptsDrawer v-model:visible="showPromptsDrawer" />
+
+    <!-- Speed Test Drawer -->
+    <SpeedTestDrawer v-model:visible="showSpeedTestDrawer" />
 
     <!-- Help Modal -->
     <n-modal v-model:show="showHelpModal" preset="card" title="CODING-TOOL 使用帮助" style="width: 800px; max-width: 90vw;">
@@ -334,15 +387,20 @@
 import { ref, computed, onMounted, onUnmounted, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { NTooltip, NSwitch, NSpin, NModal, NIcon } from 'naive-ui'
-import { ChatbubblesOutline, ServerOutline, TerminalOutline, LogoGithub, HelpCircleOutline, MoonOutline, SunnyOutline, SettingsOutline, HomeOutline, ChatboxEllipsesOutline, CodeSlashOutline, SparklesOutline, BookmarkOutline } from '@vicons/ionicons5'
+import { ChatbubblesOutline, ServerOutline, TerminalOutline, LogoGithub, HelpCircleOutline, MoonOutline, SunnyOutline, SettingsOutline, HomeOutline, ChatboxEllipsesOutline, CodeSlashOutline, SparklesOutline, BookmarkOutline, ExtensionPuzzleOutline, ChatboxOutline, SpeedometerOutline, WarningOutline } from '@vicons/ionicons5'
 import RightPanel from './RightPanel.vue'
 import RecentSessionsDrawer from './RecentSessionsDrawer.vue'
 import FavoritesDrawer from './FavoritesDrawer.vue'
 import SettingsDrawer from './SettingsDrawer.vue'
+import McpDrawer from './McpDrawer.vue'
+import PromptsDrawer from './PromptsDrawer.vue'
+import SpeedTestDrawer from './SpeedTestDrawer.vue'
 import HeaderButton from './HeaderButton.vue'
 import UpdateDialog from './UpdateDialog.vue'
+import EnvConflictModal from './EnvConflictModal.vue'
 import { updateNestedUIConfig } from '../api/ui-config'
 import { checkForUpdates as checkForUpdatesApi, getChangelog } from '../api/version'
+import { checkEnvConflicts } from '../api/env'
 import message, { dialog } from '../utils/message'
 import { useTheme } from '../composables/useTheme'
 import { useGlobalState } from '../composables/useGlobalState'
@@ -382,7 +440,58 @@ const shouldShowRightPanel = computed(() => {
 const showRecentDrawer = ref(false)
 const showFavoritesDrawer = ref(false)
 const showSettingsDrawer = ref(false)
+const showMcpDrawer = ref(false)
+const showPromptsDrawer = ref(false)
+const showSpeedTestDrawer = ref(false)
 const showHelpModal = ref(false)
+
+// 环境变量冲突检测
+const envConflicts = ref([])
+const showEnvModal = ref(false)
+
+// 检测环境变量冲突
+async function checkEnvConflictsOnLoad() {
+  try {
+    const result = await checkEnvConflicts()
+    if (result.success && result.conflicts?.length > 0) {
+      envConflicts.value = result.conflicts
+
+      // 检查是否用户选择了"不再提醒"，如果没有则自动弹出
+      const neverRemind = localStorage.getItem('envConflictNeverRemind')
+      if (neverRemind !== 'true') {
+        showEnvModal.value = true
+      }
+    }
+  } catch (err) {
+    console.error('Check env conflicts failed:', err)
+  }
+}
+
+// 处理删除后
+async function handleEnvDeleted() {
+  try {
+    const result = await checkEnvConflicts()
+    if (result.success) {
+      envConflicts.value = result.conflicts || []
+      if (envConflicts.value.length === 0) {
+        showEnvModal.value = false
+      }
+    }
+  } catch (err) {
+    console.error('Recheck env conflicts failed:', err)
+  }
+}
+
+// 暂时忽略
+function handleEnvIgnore() {
+  showEnvModal.value = false
+}
+
+// 不再提醒（只是不自动弹出，顶部图标还在）
+function handleEnvNeverRemind() {
+  showEnvModal.value = false
+  localStorage.setItem('envConflictNeverRemind', 'true')
+}
 const globalLoading = ref(false) // 全局 loading 状态
 const updateInfo = ref(null) // 版本更新信息
 
@@ -536,6 +645,9 @@ onMounted(() => {
   // 监听面板可见性变化事件
   window.addEventListener('panel-visibility-change', handlePanelVisibilityChange)
 
+  // 检测环境变量冲突
+  checkEnvConflictsOnLoad()
+
   // 延迟检查版本更新，等页面完全加载后再执行
   // 使用 requestIdleCallback 在浏览器空闲时执行，或者延迟到 2 秒后
   if (window.requestIdleCallback) {
@@ -584,6 +696,31 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.env-warning-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: rgba(245, 158, 11, 0.12);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.env-warning-btn:hover {
+  background: rgba(245, 158, 11, 0.2);
+}
+
+.env-warning-icon {
+  color: #f59e0b;
+}
+
+.env-warning-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f59e0b;
 }
 
 .proxy-control {

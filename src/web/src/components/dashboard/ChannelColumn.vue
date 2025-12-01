@@ -633,6 +633,7 @@ let latestLogId = null
 let statsIntervalId = null
 let timeIntervalId = null
 let componentMounted = false
+let statsDebounceTimer = null
 
 // 渠道列表 - 使用 Pinia store 的共享数据，启用的排前面
 const channels = computed(() => {
@@ -708,6 +709,17 @@ function formatStatNumber(num) {
   return num.toString()
 }
 
+// 防抖调用渠道统计（避免频繁日志导致大量请求）
+function debouncedLoadChannelStats() {
+  if (statsDebounceTimer) {
+    clearTimeout(statsDebounceTimer)
+  }
+  // 5秒内的多次调用只执行最后一次
+  statsDebounceTimer = setTimeout(() => {
+    loadChannelStats()
+  }, 5000)
+}
+
 watch(logsToDisplay, (newLogs) => {
   const newestId = newLogs[0]?.id || null
   if (!newestId || newestId === latestLogId) {
@@ -716,8 +728,8 @@ watch(logsToDisplay, (newLogs) => {
   }
   latestLogId = newestId
 
-  // 有新日志时刷新渠道统计
-  loadChannelStats()
+  // 有新日志时使用防抖刷新渠道统计（避免大量请求）
+  debouncedLoadChannelStats()
 
   const isNearTop = logsContainer.value ? logsContainer.value.scrollTop < 20 : true
   if (isNearTop) {
@@ -899,6 +911,7 @@ onUnmounted(() => {
   componentMounted = false
   if (statsIntervalId) clearInterval(statsIntervalId)
   if (timeIntervalId) clearInterval(timeIntervalId)
+  if (statsDebounceTimer) clearTimeout(statsDebounceTimer)
   window.removeEventListener('panel-visibility-change', handleVisibilityChange)
 
   // 清理动画计时器
