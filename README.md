@@ -50,7 +50,9 @@ npm install -g coding-tool
 ```bash
 git clone https://github.com/CooperJiang/cc-tool.git
 cd cc-tool
-npm install && npm link
+npm install
+npm run build:web   # 构建 Web UI 到 dist/web，避免 ct ui 提示 Cannot GET /
+npm link
 ```
 
 ### 验证安装

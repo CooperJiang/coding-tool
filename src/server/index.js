@@ -10,6 +10,7 @@ const { isProxyConfig: isCodexProxyConfig } = require('./services/codex-settings
 const { startProxyServer } = require('./proxy-server');
 const { startCodexProxyServer } = require('./codex-proxy-server');
 const { startGeminiProxyServer } = require('./gemini-proxy-server');
+const fs = require('fs');
 
 async function startServer(port) {
   const config = loadConfig();
@@ -119,10 +120,24 @@ async function startServer(port) {
 
   // Serve static files in production
   const distPath = path.join(__dirname, '../../dist/web');
-  if (require('fs').existsSync(distPath)) {
+  const distExists = fs.existsSync(distPath);
+  if (!distExists) {
+    console.log(chalk.yellow('\n⚠️  未找到 Web UI 构建产物 (dist/web)。'));
+    console.log(chalk.gray('   请在项目根目录运行: npm run build:web'));
+    console.log(chalk.gray('   或在 src/web 执行: npm install && npm run dev 以开发模式访问 http://localhost:5000\n'));
+  }
+
+  if (distExists) {
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
+    });
+  } else {
+    // 如果缺少构建产物，给出清晰提示而不是默认 404
+    app.get('*', (_req, res) => {
+      res
+        .status(503)
+        .send('Web UI assets missing. Run \"npm run build:web\" in project root, then restart.');
     });
   }
 
