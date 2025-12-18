@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+src/web/node_modules/
+
+# Build outputs (will be rebuilt in container)
+dist/
+src/web/dist/
+
+# Development files
+.git/
+.gitignore
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Local config (user should mount their own)
+config.json
+
+# Docker files (no need to copy)
+Dockerfile
+docker-compose.yml
+.dockerignore

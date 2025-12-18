@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  coding-tool:
+    # 使用官方镜像（推荐）
+    image: ghcr.io/cooperjiang/coding-tool:latest
+    # 或本地构建: 注释上面的 image，取消下面的注释
+    # build: .
+    container_name: coding-tool
+    restart: unless-stopped
+    ports:
+      - "10099:10099"   # Web UI
+      - "10088:10088"   # Claude Proxy
+      - "10089:10089"   # Codex Proxy
+      - "10090:10090"   # Gemini Proxy
+    volumes:
+      # 数据持久化
+      - ./data/claude:/data/.claude
+      - ./data/codex:/data/.codex
+      - ./data/gemini:/data/.gemini
+    environment:
+      - NODE_ENV=production
+      - HOME=/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:10099/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # Watchtower - 自动监控并拉取最新镜像
+  coding-tool-watchtower:
+    image: containrrr/watchtower
+    container_name: coding-tool-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # 每6小时检查一次更新
+      - WATCHTOWER_POLL_INTERVAL=21600
+      # 只更新有标签的容器
+      - WATCHTOWER_LABEL_ENABLE=true
+      # 更新后清理旧镜像
+      - WATCHTOWER_CLEANUP=true
+    command: --interval 21600
